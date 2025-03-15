@@ -248,16 +248,33 @@ class Agent:
         """
         self.side = side
         self.ships = {}
+        self.home_planet = (None, None)
+        self.first_run = True
+        self.constructed_ships = 0
+        """Tuple - (x, y), default value"""
 
     def get_action(self, obs: dict) -> dict:
+        if self.home_planet[0] is None:
+            for planet in obs.get('planets_occupation', []):
+                if planet[0] == 9 and planet[1] == 9:
+                    self.home_planet = ((9, 9), planet[2])
+                elif planet[0] == 90 and planet[1] == 90:
+                    self.home_planet = ((90, 90), planet[2])
+                break
+
         ships_count = len(obs['allied_ships'])
 
         actions: List[Action] = []
+
+        if self.first_run:
+            self.first_run = False
+            actions.append(Construction(ships_count=1))
 
         visited_ids = {ship_id: False for ship_id in self.ships.keys()}
         for n, ship_data in enumerate(obs['allied_ships']):
             ship_id = ship_data[0]
             if ship_id not in self.ships:
+                self.constructed_ships += 1
                 self.ships[ship_id] = Ship(side=self.side)
             visited_ids[ship_id] = True
 
@@ -291,8 +308,13 @@ class Agent:
 
         # Let's always build ships if we have safety net
         if can_build_ship_with_safety_net(obs):
-            construction_max = max(1, construction_max)
+            print("cranking out a ship just because we can")
+            construction_max = maximum_ships_we_can_build_with_safety_net(obs)
 
+        if is_our_home_planet_occupied(obs, self.home_planet):
+            print("Our home planet is occupied - want to crank out a ship!")
+            construction_max = maximum_ships_we_can_build_with_safety_net(obs)
+        
         result = {
             "ships_actions": ship_actions,
             "construction": construction_max

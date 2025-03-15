@@ -11,15 +11,17 @@ def add(a: int, b: int) -> int:
 
 def count_building_resources(obs: dict) -> int:
     resources = []
-    for resource_value in obs['resources']:
-        resources.append(resource_value)
-    
+    for i in range(4):
+        resources.append(obs['resources'][i])
+
     return min(resources)
 
 def can_build_ships(obs: dict, ship_count: int = 1) -> bool:
     # TODO: check if it's actually 99 due to the game logic ordering thingy
     building_resources = count_building_resources(obs)
-    return building_resources >= (ship_count * 100)
+    result = building_resources >= (ship_count * 100)
+    #print(f"Checking if i can build {ship_count} ships with {building_resources} resources - {result}")
+    return result
 
 def can_build_ship(obs: dict) -> bool:
     return can_build_ships(obs, 1)
@@ -36,8 +38,18 @@ def maximum_ships_we_can_build_with_safety_net(obs: dict) -> int:
     building_resources = count_building_resources(obs)
     return max(0, (building_resources - 100) // 100)
 
-def is_our_home_planet_occupied(obs: dict) -> bool:
-    return False  # TODO - implement this and react to it by creating a ship
+def is_our_home_planet_occupied(obs: dict, home_planet) -> bool:
+    """Tuple - (x, y), default value"""
+    if home_planet[0] is None:
+        print("warning - home planet not detected")
+        return False 
+
+    for planet in obs['planets_occupation']:
+        if planet[0] == home_planet[0][0] and planet[1] == home_planet[0][1]:
+            return planet[2] != home_planet[1]
+
+    print("error - home planet not found")
+    return False
 
 class FieldType(IntEnum):
     OCCUPIED_PLAYER1 = 0b01000000
