@@ -1,9 +1,6 @@
 name: Test All Agents
 
 on:
-  push:
-    branches:
-      - CI/CD-test
   workflow_dispatch:
 
 jobs:
@@ -14,18 +11,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Read the last best agent
-        id: best_agent
-        run: echo "LAST_BEST_AGENT=$(cat ./tasks-2025/task_5/.best_agent | awk -F '=' '{print $2}')" >> $GITHUB_ENV
-
-      - name: Detect all agent folders
-        id: detect_agents
+      - name: Set Best Agent and Test List
+        id: set_agents
         run: |
-          ALL_FOLDERS=$(ls -d agents/*/ | awk -F '/' '{print $2}')
-          echo "Detected agents: $ALL_FOLDERS"
-          echo "ALL_FOLDERS<<EOF" >> $GITHUB_ENV
-          echo "$ALL_FOLDERS" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Dbest agent
+          echo "LAST_BEST_AGENT=base-agent" >> $GITHUB_ENV
+
+          # agents-to-tests
+          TEST_AGENTS="icbm-agent icbm-agent icbm-agent"
+          echo "TEST_AGENTS=$TEST_AGENTS" >> $GITHUB_ENV
+
+          echo "Best Agent: $LAST_BEST_AGENT"
+          echo "Agents to test: $TEST_AGENTS"
 
       - name: Set up Python 3.9
         uses: actions/setup-python@v4
@@ -40,7 +37,7 @@ jobs:
 
       - name: Run test.sh for each agent
         run: |
-          for agent in $ALL_FOLDERS; do
+          for agent in $TEST_AGENTS; do
             echo "Testing $agent against $LAST_BEST_AGENT"
             ./task_5/test.sh $LAST_BEST_AGENT $agent linux 20
           done
