@@ -15,7 +15,7 @@ jobs:
         id: set_agents
         run: |
           # Dbest agent
-          echo "LAST_BEST_AGENT=base-agent" >> $GITHUB_ENV
+          echo "LAST_BEST_AGENT=anti-icbm" >> $GITHUB_ENV
 
           # agents-to-tests
           TEST_AGENTS="icbm-agent icbm-agent icbm-agent"
