@@ -14,3 +14,12 @@ pip install -r requirements.txt
 ```
 
 Zamiast deepseek-generated bierzcie nazwę katalogu
+
+
+Aby wysłać, po uruchomieniu:
+
+```cp agent.py best_agent.py```
+
+Potem push do repo 
+
+I następnie example_submission.py z atheny

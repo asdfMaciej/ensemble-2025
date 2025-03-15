@@ -1,6 +1,9 @@
 from task_5.utils.utils import * # DO NOT TOUCH THIS FIRST LINE!!!
 
 class Agent:
+    def __init__(self):
+        constructor(self)
+
     def get_action(self, obs: dict) -> dict:
         ships_actions = []
         construction = 0
