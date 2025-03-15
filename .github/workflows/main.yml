@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - CI/CD-test
+  workflow_dispatch:
 
 jobs:
   detect-and-run:
