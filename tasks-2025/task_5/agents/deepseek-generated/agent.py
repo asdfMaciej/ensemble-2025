@@ -8,7 +8,7 @@ class Agent:
         ships_actions = []
         construction = 0
 
-        outside_function()
+        outside_function(self)
 
         # Find the first unoccupied planet
         target_planet = None
