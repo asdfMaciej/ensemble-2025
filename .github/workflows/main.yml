@@ -5,7 +5,7 @@ on:
     branches:
       - CI/CD-test
     paths:
-      - 'agents/**' 
+      - 'task_5/agents/**' 
 
 jobs:
   detect-and-run:
