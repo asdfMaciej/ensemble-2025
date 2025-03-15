@@ -3,7 +3,7 @@ name: Test All Modified Agents
 on:
   push:
     branches:
-      -CI/CD-test
+      - CI/CD-test
 
 jobs:
   detect-and-run:
