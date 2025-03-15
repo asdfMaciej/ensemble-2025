@@ -1,0 +1,12 @@
+asyncpg
+gymnasium
+pygame
+torch
+# torch from: https://pytorch.org/get-started/locally/
+torchvision
+# torchvision from: https://pytorch.org/get-started/locally/
+tqdm
+onnxruntime
+onnx
+pandas
+requests
