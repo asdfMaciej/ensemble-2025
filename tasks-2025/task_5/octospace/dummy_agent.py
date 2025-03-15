@@ -1,6 +1,12 @@
 # Skeleton for Agent class
 
 class Agent:
+    def __init__(self, side: int):
+        """
+        :param side: Indicates whether the player is on left side (0) or right side (1)
+        """
+        self.side = side
+
     def get_action(self, obs: dict) -> dict:
         """
         Main function, which gets called during step() of the environment.
