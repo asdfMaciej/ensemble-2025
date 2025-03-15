@@ -23,3 +23,14 @@ Aby wysłać, po uruchomieniu:
 Potem push do repo 
 
 I następnie example_submission.py z atheny
+
+
+### Testy
+
+Do uruchomienia testów potrzebny pytest
+
+```
+pytest
+```
+
+I essa
