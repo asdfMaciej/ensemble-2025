@@ -39,5 +39,5 @@ jobs:
         run: |
           for agent in $TEST_AGENTS; do
             echo "Testing $agent against $LAST_BEST_AGENT"
-            ./task_5/test.sh $LAST_BEST_AGENT $agent linux 20
+            ./tasks-2025/task_5/test.sh $LAST_BEST_AGENT $agent linux 20
           done
