@@ -3,6 +3,7 @@ import numpy as np
 import os
 import torch
 
+
 # Don't delete this! It allows the environment to be registered
 import octospace
 import pygame
