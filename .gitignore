@@ -1,3 +1,5 @@
 **/__pycache__
 __pycache__/
 *.pyc 
+/tasks-2025/task_5/agent.py  
+
