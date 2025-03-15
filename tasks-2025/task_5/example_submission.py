@@ -1,7 +1,7 @@
 import requests
 
 
-TOKEN = ...                         # Your token here
+TOKEN = "yvuEx3TnLSgu6iKUqsYKxfPF8xBvCw"                      # Your token here
 URL = "149.156.182.9:6060/task-5/submit"
 agent_file = "./agent.py"
 
