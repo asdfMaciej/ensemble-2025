@@ -36,7 +36,7 @@ class Agent:
                 action_added = True
             # If can't move, try to fire
             elif fire_cooldown == 0:
-                ships_actions.append([ship_id, 1, 0, 0])
+                ships_actions.append([ship_id, 1, 0])
                 action_added = True
 
         # Attempt to build one ship if resources are sufficient (assuming cost of 10)
