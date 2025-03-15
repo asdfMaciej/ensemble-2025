@@ -9,7 +9,6 @@ def outside_function(self: object) -> None:
 def add(a: int, b: int) -> int:
     return a + b
 
-
 def count_building_resources(obs: dict) -> int:
     resources = []
     for resource_value in obs['resources']:
@@ -87,3 +86,89 @@ class FieldType(IntEnum):
         except ValueError:
             return None
 
+def find_distance(point1: [int, int], point2: [int, int]) -> int:
+    return abs(point1[0] - point2[0]) + abs(point1[1] - point2[1])
+
+
+def field_weight(field: FieldType) -> int:
+        weights = {
+            FieldType.SPACE: 0,
+            FieldType.ASTEROID: 4,
+            FieldType.IONIZED_FIELD: -2,
+            FieldType.PLANET_PLAYER_1: 100,
+            FieldType.PLANET_PLAYER_2: 100,
+        }
+
+        return weights[field]
+
+
+def find_path(start: [int, int], end: [int, int], map_data: list[list[int]], visited=None) -> (int, int):
+    """
+    Determine the best move from start to end on a grid with weighted fields,
+    while penalizing longer jump distances and avoiding revisiting cells.
+
+    Moves:
+      0: UP    -> (start[0] - jump, start[1])
+      1: RIGHT -> (start[0], start[1] + jump)
+      2: DOWN  -> (start[0] + jump, start[1])
+      3: LEFT  -> (start[0], start[1] - jump)
+
+    The cost for a move is calculated as:
+         jump_penalty + find_distance(move, end) + field_weight(move's cell)
+    with a jump_penalty equal to the jump length.
+
+    A move going out-of-bounds or to a previously visited cell gets an infinite cost.
+
+    Args:
+        start (list[int, int]): Current position.
+        end (list[int, int]): Target position.
+        map_data (list[list[int]]): Grid with cell weights.
+        visited (set, optional): Set of visited cells as (x, y) tuples.
+
+    Returns:
+        (int, int): A tuple (direction, jump) for the best move.
+    """
+    if visited is None:
+        visited = set()
+    # Mark the current cell as visited
+    visited.add(tuple(start))
+
+    # Determine possible jump distances.
+    possible_jumps = [1, 2]
+    if FieldType.decode_tile(map_data[start[0]][start[1]]) == FieldType.IONIZED_FIELD:
+        possible_jumps.append(3)
+
+    # For each allowed jump, define possible moves in order: UP, RIGHT, DOWN, LEFT.
+    possible_moves = [(
+        [
+            (start[0] - x, start[1]),  # UP
+            (start[0], start[1] + x),  # RIGHT
+            (start[0] + x, start[1]),  # DOWN
+            (start[0], start[1] - x)  # LEFT
+        ],
+        x  # jump distance
+    ) for x in possible_jumps]
+
+    num_rows = len(map_data)
+    num_cols = len(map_data[0]) if num_rows > 0 else 0
+
+    best_moves = []
+
+    for moves, jump in possible_moves:
+        costs = []
+        for move in moves:
+            x, y = move
+            if x < 0 or x >= num_rows or y < 0 or y >= num_cols or (x, y) in visited:
+                cost = float('inf')
+            else:
+                cost = find_distance(move, end) + field_weight(FieldType.decode_tile(map_data[x][y])) - jump
+            costs.append(cost)
+        best_direction_index = min(range(len(costs)), key=lambda i: costs[i])
+        best_cost = costs[best_direction_index]
+        best_moves.append((best_direction_index, jump, best_cost))
+
+    # Choose the overall best move among all jump groups.
+    best_overall = min(best_moves, key=lambda t: t[2])
+    best_direction, best_step, _ = best_overall
+
+    return (best_direction, best_step)
