@@ -17,10 +17,10 @@ echo "Running agent: $agent_name"
 cp agents/$agent_name/agent.py ./agent.py
 
 # Remove the first line of agent.py
-sed -i '1d' agent.py
+sed -i '' '1d' agent.py
 
 # Copy the entire content of utils/utils.py to the start of agent.py
-sed -i '1r utils/utils.py' agent.py
+sed -i '' '1r utils/utils.py' agent.py
 
 cd octospace
 python3 run_match.py ../agent.py ../agent.py --render_mode=human
