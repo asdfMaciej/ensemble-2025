@@ -127,12 +127,10 @@ class ShipICBM:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
     
         ships_actions = []
-        ships = obs['allied_ships']
 
         # On the first turn, determine starting side.
         if self.is_first_turn:
             # Use the first allied ship to decide.
-            ship_id, x, y, hp, fire_cooldown, move_cooldown = ships[0]
             # Here we assume that if x < 50 the player starts on top; otherwise on bottom.
             if x < 50:
                 self.is_player1 = True
@@ -193,31 +191,60 @@ class Ship:
         self.icbm = ShipICBM()
         self.explorer = ShipExplorer()
     
-    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> dict:
+    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> Optional[Action]:
         # todo: starting role for new ship
         action = self.icbm.get_action(obs, ship_data)
-        if isinstance(action, Construction):
-            return {
-                "ships_actions": [],
-                "construction": action.ships_count
-            }
-
-        ships_actions = []
-        if action:
-            ships_actions.append(action.to_game_format())
-
-        return {
-            "ships_actions": ships_actions,
-            "construction": 0
-        } 
+        return action 
 
 class Agent:
     def __init__(self):
-        self.ship = Ship()
+        self.ships = {}
 
     def get_action(self, obs: dict) -> dict:
-        ship_data = None if not len(obs['allied_ships']) else obs['allied_ships'][0]
-        return self.ship.get_action(obs, ship_data)
+        ships = obs['allied_ships']
+        if not ships:
+            return {
+                "ships_actions": [],
+                "construction": 1
+            }
+
+        actions: List[Action] = []
+
+        visited_ids = {ship_id: False for ship_id in self.ships.keys()}
+        for n, ship_data in enumerate(ships):
+            ship_id = ship_data[0]
+            if ship_id not in self.ships:
+                self.ships[ship_id] = Ship()
+            visited_ids[ship_id] = True
+
+            ship = self.ships[ship_id]
+            actions.append(ship.get_action(obs, ship_data))
+
+        # Ensure all ships have been processed
+        # if not - they're currently not on the map, so they must have been destroyed 
+        for ship_id, visited in visited_ids.items():
+            if not visited:
+                # TODO: could process a ship destructor
+                self.ships.pop(ship_id, None)
+
+        # Merge actions and resolve conflicts
+        ship_actions, construction_max = [], 0
+        for action in actions:
+            if isinstance(action, Construction):
+                construction_max = max(construction_max, action.ships_count)
+            
+            elif isinstance(action, Action):
+                ship_actions.append(action.to_game_format())
+
+            else:
+                pass # ship decided to do nothing
+
+        result = {
+            "ships_actions": ship_actions,
+            "construction": construction_max
+        }
+
+        return result
     
 
     def load(self, abs_path: str):
