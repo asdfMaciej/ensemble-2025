@@ -1,10 +1,14 @@
 from task_5.utils.utils import * # DO NOT TOUCH THIS FIRST LINE!!!
 import random
 from dataclasses import dataclass
-from typing import Optional, Tuple 
+from typing import Optional, Tuple, List
+from abc import ABC
+
+class Action(ABC):
+    pass 
 
 @dataclass
-class Shoot: 
+class Shoot(Action): 
     """
     DON'T SHOOT! WE'RE A PEACEFUL TEAM!
     """
@@ -21,7 +25,7 @@ class Shoot:
         return [self.ship_id, 1, self.direction]
 
 @dataclass
-class Move:
+class Move(Action):
     ship_id: int 
     direction: int 
     """ 
@@ -38,7 +42,7 @@ class Move:
         return [self.ship_id, 0, self.direction, self.speed]
 
 @dataclass
-class Build:
+class Construction(Action):
     ships_count: int 
     """
     0-10
@@ -116,26 +120,14 @@ class ShipICBM:
                     available_planets.append((row_idx, col_idx))
         return available_planets
 
-    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> dict:
+    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> Optional[Action]:
         if not ship_data: 
-            return {
-                "ships_actions": [],
-                "construction": 1
-            }
+            return Construction(ships_count=1)
 
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
     
         ships_actions = []
         ships = obs['allied_ships']
-        
-        """
-        # If no ships, try to construct one.
-        if len(ships) == 0:
-            return {
-                "ships_actions": [],
-                "construction": 1
-            }
-        """
 
         # On the first turn, determine starting side.
         if self.is_first_turn:
@@ -151,51 +143,48 @@ class ShipICBM:
             self.is_first_turn = False
 
         increase_move_count = True
+        result_action = None
         # Use different logic for top (is_player1) vs bottom players.
         if self.is_player1:
             # For top players: lower x values.
             if x < self.current_data_points['threshold1']:
                 # If x is very low, use a move from our move list with direction 2.
                 move_code = self.current_data_points['moves'][self.move_count % len(self.current_data_points['moves'])]
-                ships_actions.append([ship_id, 0, move_code, 2])
+                result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
             elif self.current_data_points['threshold1'] <= x < self.current_data_points['threshold2']:
                 move_code = self.current_data_points['moves'][self.move_count % len(self.current_data_points['moves'])]
-                ships_actions.append([ship_id, 0, move_code, 1])
+                result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
             else:  # x >= threshold2
-                ships_actions.append([ship_id, 0, 1, 2])
+                result_action = Move(ship_id=ship_id, direction=1, speed=2)
                 increase_move_count = False 
         else:
             # For bottom players: higher x values.
             if x > self.current_data_points['threshold1']:
                 move_code = self.current_data_points['moves'][self.move_count % len(self.current_data_points['moves'])]
                 ships_actions.append([ship_id, 0, move_code, 2])
+                result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
             elif self.current_data_points['threshold2'] < x <= self.current_data_points['threshold1']:
                 move_code = self.current_data_points['moves'][self.move_count % len(self.current_data_points['moves'])]
-                ships_actions.append([ship_id, 0, move_code, 1])
+                result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
             else:  # x <= threshold2
                 ships_actions.append([ship_id, 0, 3, 2])
+                result_action = Move(ship_id=ship_id, direction=3, speed=2)
                 increase_move_count = False 
 
         if increase_move_count:
             self.move_count += 1
 
-        return {
-            "ships_actions": ships_actions,
-            "construction": 0
-        }
+        return result_action
 
 class ShipExplorer:
     def __init__(self):
         pass 
 
-    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> dict:
+    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> Optional[Action]:
         if ship_data:
             ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
 
-        return {
-            "ships_actions": [],
-            "construction": 0
-        }
+        return None
 
 
 class Ship: 
@@ -206,7 +195,21 @@ class Ship:
     
     def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> dict:
         # todo: starting role for new ship
-        return self.icbm.get_action(obs, ship_data)
+        action = self.icbm.get_action(obs, ship_data)
+        if isinstance(action, Construction):
+            return {
+                "ships_actions": [],
+                "construction": action.ships_count
+            }
+
+        ships_actions = []
+        if action:
+            ships_actions.append(action.to_game_format())
+
+        return {
+            "ships_actions": ships_actions,
+            "construction": 0
+        } 
 
 class Agent:
     def __init__(self):
