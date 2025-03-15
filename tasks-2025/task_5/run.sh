@@ -1,49 +1,63 @@
 #!/bin/bash
 
-# Read as first argument the {agent_name}
-agent_name=$1
+# Przykład użycia:
+# ./run.sh agent_1 agent_2 linux
+# ./run.sh agent_1 agent_2 macos
+# lub jeśli trzeci argument nie zostanie podany, domyślnie skrypt użyje "linux".
 
-# Read macos or linux as second argument - by default linux if not set 
-os=$2
+# Czytamy nazwy agentów
+agent_name_1=$1
+agent_name_2=$2
+
+# Czytamy opcjonalnie system operacyjny (linux/macos)
+os=$3
 if [ -z "$os" ]
 then
     os="linux"
 fi
 
-# Check that os must be linux or macos
+# Sprawdzamy, czy os jest poprawny
 if [ "$os" != "linux" ] && [ "$os" != "macos" ]
 then
-    echo "Please provide a valid os as the second argument"
-    echo "Example: ./run.sh agent_1 <linux/macos>"
+    echo "Please provide a valid os as the third argument"
+    echo "Example: ./run.sh agent_1 agent_2 <linux/macos>"
     exit 1
 fi
 
-# If agent_name not set, exit with a description how to run this command
-if [ -z "$agent_name" ]
+# Jeśli nie podano agent_name_1 lub agent_name_2
+if [ -z "$agent_name_1" ] || [ -z "$agent_name_2" ]
 then
-    echo "Please provide the agent name as the first argument"
-    echo "Example: ./run.sh agent_1"
+    echo "Please provide two agent names as the first and second arguments"
+    echo "Example: ./run.sh agent_1 agent_2"
     exit 1
 fi
 
+# Wyświetlamy, jakie agenty uruchamiamy
+echo "Running match between agents: $agent_name_1 vs $agent_name_2"
 
-# Tell the user the agent name
-echo "Running agent: $agent_name"
+# Kopiujemy pliki agentów do głównego katalogu jako agent_1.py i agent_2.py
+cp agents/$agent_name_1/agent.py ./agent_1.py
+cp agents/$agent_name_2/agent.py ./agent_2.py
 
-cp agents/$agent_name/agent.py ./agent.py
+# Funkcja pomocnicza do usuwania i wklejania zawartości utils.py
+process_agent_file() {
+  local filename=$1
+  if [ "$os" == "macos" ]
+  then
+    sed -i '' '1d' $filename
+    sed -i '' '1r utils/utils.py' $filename
+  else
+    sed -i '1d' $filename
+    sed -i '1r utils/utils.py' $filename
+  fi
+}
 
-if [ "$os" == "macos" ]
-then
-    # Remove the first line of agent.py
-    sed -i '' '1d' agent.py
-    # Copy the entire content of utils/utils.py to the start of agent.py
-    sed -i '' '1r utils/utils.py' agent.py
-else
-    # Remove the first line of agent.py
-    sed -i '1d' agent.py
-    # Copy the entire content of utils/utils.py to the start of agent.py
-    sed -i '1r utils/utils.py' agent.py
-fi
+# Przetwarzamy oba pliki agentów
+process_agent_file "agent_1.py"
+process_agent_file "agent_2.py"
 
+# Przechodzimy do folderu octospace
 cd octospace
-python3 run_match.py ../agent.py ../agent.py --render_mode=human
+
+# Uruchamiamy mecz z dwoma agentami
+python3 run_match.py ../agent_1.py ../agent_2.py --render_mode=human
