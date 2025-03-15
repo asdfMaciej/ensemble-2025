@@ -38,9 +38,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Give execute permissions to test.sh
-        run: chmod +x task_5/test.sh
-
       - name: Run test.sh for each agent
         run: |
           for agent in $ALL_FOLDERS; do
