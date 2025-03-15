@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc 
 /tasks-2025/task_5/agent.py  
+/task_5/agent_1.py
+/task_5/agent_2.py
 /tasks-2025/task_5/agent1.py
 /tasks-2025/task_5/agent2.py
 
