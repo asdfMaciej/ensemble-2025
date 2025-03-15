@@ -40,12 +40,12 @@ class Agent:
                 action_added = True
 
         # Attempt to build one ship if resources are sufficient (assuming cost of 10)
-        if obs['resources'] >= 10:
-            construction = 1
+        #if obs['resources'] >= 10:
+        #    construction = 1
 
         return {
             "ships_actions": ships_actions,
-            "construction": construction
+            "construction": 0
         }
 
 
