@@ -2,52 +2,50 @@
 
 class Agent:
     def get_action(self, obs: dict) -> dict:
-        """
-        Main function, which gets called during step() of the environment.
+        ships_actions = []
+        construction = 0
 
-        Observation space:
-            game_map: whole grid of board_size, which already has applied visibility mask on it
-            allied_ships: an array of all currently available ships for the player. The ships are represented as a list:
-                (ship id, position x, y, current health points, firing_cooldown, move_cooldown)
-                - ship id: int [0, 1000]
-                - position x: int [0, 100]
-                - position y: int [0, 100]
-                - health points: int [1, 100]
-                - firing_cooldown: int [0, 10]
-                - move_cooldown: int [0, 3]
-            enemy_ships: same, but for the opposing player ships
-            planets_occupation: for each visible planet, it shows the occupation progress:
-                - planet_x: int [0, 100]
-                - planet_y: int [0, 100]
-                - occupation_progress: int [-1, 100]:
-                    -1: planet is unoccupied
-                    0: planet occupied by the 1st player
-                    100: planet occupied by the 2nd player
-                    Values between indicate an ongoing conflict for the ownership of the planet
-            resources: current resources available for building
+        # Find the first unoccupied planet
+        target_planet = None
+        for planet in obs.get('planets_occupation', []):
+            if planet[2] == -1:  # Check if the planet is unoccupied
+                target_planet = (planet[0], planet[1])
+                break
 
-        Action space:
-            ships_actions: player can provide an action to be executed by every of his ships.
-                The command looks as follows:
-                - ship_id: int [0, 1000]
-                - action_type: int [0, 1]
-                    0 - move
-                    1 - fire
-                - direction: int [0, 3] - direction of movement or firing
-                    0 - right
-                    1 - down
-                    2 - left
-                    3 - up
-                - speed (not applicable when firing): int [0, 3] - a number of fields to move
-            construction: int [0, 10] - a number of ships to be constructed
+        # Process each allied ship
+        for ship in obs['allied_ships']:
+            ship_id, x, y, hp, fire_cooldown, move_cooldown = ship
+            action_added = False
 
-        :param obs:
-        :return:
-        """
+            # Try to move if possible
+            if move_cooldown == 0:
+                direction = 0  # Default to right if no target
+                if target_planet:
+                    px, py = target_planet
+                    dx = px - x
+                    dy = py - y
+
+                    # Determine direction based on largest distance
+                    if abs(dx) >= abs(dy):
+                        direction = 0 if dx > 0 else 2
+                    else:
+                        direction = 1 if dy > 0 else 3
+
+                # Append move action with speed 1
+                ships_actions.append([ship_id, 0, direction, 1])
+                action_added = True
+            # If can't move, try to fire
+            elif fire_cooldown == 0:
+                ships_actions.append([ship_id, 1, 0, 0])
+                action_added = True
+
+        # Attempt to build one ship if resources are sufficient (assuming cost of 10)
+        if obs['resources'] >= 10:
+            construction = 1
 
         return {
-            "ships_actions": [],
-            "construction": 0
+            "ships_actions": ships_actions,
+            "construction": construction
         }
 
 
