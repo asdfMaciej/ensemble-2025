@@ -1,4 +1,4 @@
-name: Test All Modified Agents
+name: Test All Agents
 
 on:
   push:
@@ -16,24 +16,15 @@ jobs:
 
       - name: Read the last best agent
         id: best_agent
-        run: echo "LAST_BEST_AGENT=$(cat .best_agent | awk -F '=' '{print $2}')" >> $GITHUB_ENV
+        run: echo "LAST_BEST_AGENT=$(cat ./tasks-2025/task_5/.best_agent | awk -F '=' '{print $2}')" >> $GITHUB_ENV
 
-      - name: Detect changed agent folders
+      - name: Detect all agent folders
         id: detect_agents
         run: |
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- 'agents/')
-          echo "Changed files: $CHANGED_FILES"
-
-          CHANGED_FOLDERS=$(echo "$CHANGED_FILES" | awk -F '/' '{print $2}' | sort -u)
-
-          if [ -z "$CHANGED_FOLDERS" ]; then
-            echo "No agent changes detected, skipping..."
-            exit 0
-          fi
-
-          echo "Detected agents: $CHANGED_FOLDERS"
-          echo "CHANGED_FOLDERS<<EOF" >> $GITHUB_ENV
-          echo "$CHANGED_FOLDERS" >> $GITHUB_ENV
+          ALL_FOLDERS=$(ls -d agents/*/ | awk -F '/' '{print $2}')
+          echo "Detected agents: $ALL_FOLDERS"
+          echo "ALL_FOLDERS<<EOF" >> $GITHUB_ENV
+          echo "$ALL_FOLDERS" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Set up Python 3.9
@@ -43,15 +34,16 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cd tasks-2025
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Give execute permissions to test.sh
         run: chmod +x task_5/test.sh
 
-      - name: Run test.sh for each changed agent
+      - name: Run test.sh for each agent
         run: |
-          for agent in $CHANGED_FOLDERS; do
+          for agent in $ALL_FOLDERS; do
             echo "Testing $agent against $LAST_BEST_AGENT"
             ./task_5/test.sh $LAST_BEST_AGENT $agent linux 20
           done
