@@ -10,6 +10,11 @@ SIDE_RIGHT = 1
 class Action(ABC):
     pass 
 
+class AbstractShip(ABC):
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
+        pass
+    pass
+
 @dataclass
 class Shoot(Action): 
     """
@@ -51,7 +56,7 @@ class Construction(Action):
     0-10
     """
 
-class ShipICBM: 
+class ShipICBM(AbstractShip):
     def __init__(self, side: int):
         self.side = side 
 
@@ -78,52 +83,6 @@ class ShipICBM:
         self.current_data_points = self.data_points[0]
         # This flag will be set based on the starting ship position.
         self.is_player1 = None
-
-
-    def decode_tile(self, tile_value: int) -> dict:
-        """
-        Decode an 8-bit encoded map tile.
-
-        Parameters:
-            tile_value (int): The encoded value of the tile.
-                              -1 indicates the tile is not visible.
-
-        Returns:
-            dict: Contains:
-                  - 'visible': bool, True if the tile is visible.
-                  - 'tile_type': int, the lower 6 bits representing the tile type.
-                  - 'owned_by_player1': bool, True if bit 6 is set.
-                  - 'owned_by_player2': bool, True if bit 7 is set.
-        """
-        if tile_value == -1:
-            return {"visible": False}
-
-        tile_type = tile_value & 63
-        owned_by_player1 = (tile_value & 64) == 64
-        owned_by_player2 = (tile_value & 128) == 128
-
-        return {
-            "visible": True,
-            "tile_type": tile_type,
-            "owned_by_player1": owned_by_player1,
-            "owned_by_player2": owned_by_player2
-        }
-
-    def find_available_planets(self, map_data: list) -> list:
-        """
-        Find available planets on the map and return their coordinates.
-        (A planet is defined as a visible tile with tile_type 9 that is not owned.)
-        """
-        available_planets = []
-        for row_idx, row in enumerate(map_data):
-            for col_idx, tile in enumerate(row):
-                if tile == -1:
-                    continue
-                tile_info = self.decode_tile(tile)
-                if tile_info["visible"] and tile_info["tile_type"] == 9 and not (
-                        tile_info["owned_by_player1"] or tile_info["owned_by_player2"]):
-                    available_planets.append((row_idx, col_idx))
-        return available_planets
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
@@ -183,7 +142,34 @@ class ShipICBM:
             return [Construction(ships_count=1)]
 
         return []
+class ShipICBMv2(AbstractShip):
+    def __init__(self, side: int):
+        self.side = side
+        self.target = []
+        self.move_count = 0
 
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
+        map = obs['map']
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+
+        if not self.target:
+            self.target = [70, 50]
+
+        if(self.move_count == 200):
+            self.target = [90, 90]
+
+        self.move_count += 1
+
+        direction, step = find_path([x,y], self.target, map)
+        return [Move(ship_id=ship_id, direction=direction, speed=step)]
+
+
+        pass
+    def destructor(self, obs: dict) -> List[Action]:
+        # If our ICBM has been destroyed, and we have >= 200 gold,
+        # we can automatically build a new ship.
+        if can_build_ship(obs):
+            return [Construction(ships_count=1)]
 class ShipExplorer:
     def __init__(self, side: int):
         self.side = side 
@@ -203,10 +189,11 @@ class Ship:
         self.side = side 
         self.icbm = ShipICBM(side=side)
         self.explorer = ShipExplorer(side=side)
+        self.icbmV2 = ShipICBMv2(side=side)
 
         # By default, the ship should be a ballistic missile
         if not self.role:
-            self.role = 'icbm'
+            self.role = 'icbmv2'
     
     def get_actions(self, obs: dict, ship_data: Optional[Tuple]) -> List[Action]:
         ship = self._get_current_ship()
@@ -238,6 +225,8 @@ class Ship:
             return self.icbm
         elif self.role == 'explorer':
             return self.explorer
+        elif self.role == 'icbmv2':
+            return self.icbmV2
         else:
             raise ValueError(f"Invalid role: {self.role}")
 
