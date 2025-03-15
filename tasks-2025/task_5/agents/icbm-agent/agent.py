@@ -120,10 +120,7 @@ class ShipICBM:
                     available_planets.append((row_idx, col_idx))
         return available_planets
 
-    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> Optional[Action]:
-        if not ship_data: 
-            return Construction(ships_count=1)
-
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
     
         ships_actions = []
@@ -172,26 +169,27 @@ class ShipICBM:
         if increase_move_count:
             self.move_count += 1
 
-        return result_action
+        return [result_action]
 
-    def destructor(self, obs: dict) -> Optional[Action]:
+    def destructor(self, obs: dict) -> List[Action]:
         # If our ICBM has been destroyed, and we have >= 200 gold,
         # we can automatically build a new ship.
         if can_build_ship(obs):
-            return Construction(ships_count=1)
+            return [Construction(ships_count=1)]
+
+        return []
 
 class ShipExplorer:
     def __init__(self):
         pass 
 
-    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> Optional[Action]:
-        if ship_data:
-            ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
 
-        return None
+        return []
 
-    def destructor(self, obs: dict) -> Optional[Action]:
-        return None
+    def destructor(self, obs: dict) -> List[Action]:
+        return []
 
 
 class Ship: 
@@ -204,15 +202,30 @@ class Ship:
         if not self.role:
             self.role = 'icbm'
     
-    def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> Optional[Action]:
+    def get_actions(self, obs: dict, ship_data: Optional[Tuple]) -> List[Action]:
         ship = self._get_current_ship()
-        action = ship.get_action(obs, ship_data)
-        return action 
+        actions = ship.get_actions(obs, ship_data)
+        
+        # Ensure that ships don't return invalid data
+        move_or_shoot_found = False 
+        filtered_actions = []
+        for action in actions:
+            if action and isinstance(action, (Move, Shoot)):
+                if not move_or_shoot_found:
+                    move_or_shoot_found = True
+                else:
+                    raise ValueError("Ship can only move or shoot once in a single turn.")
+                    # TODO - if we push to production, create a failsafe to do something
+            if action:
+                filtered_actions.append(action)
 
-    def destructor(self, obs: dict) -> Optional[Action]:
+        return actions
+
+    def destructor(self, obs: dict) -> List[Action]:
         ship = self._get_current_ship()
-        action = ship.destructor(obs)
-        return action
+        actions = ship.destructor(obs)
+        # TODO: validate actions such as in get_actions if necessary
+        return actions
     
     def _get_current_ship(self):
         if self.role == 'icbm':
@@ -239,7 +252,7 @@ class Agent:
             visited_ids[ship_id] = True
 
             ship = self.ships[ship_id]
-            actions.append(ship.get_action(obs, ship_data))
+            actions.extend(ship.get_actions(obs, ship_data))
 
         # If we didn't process some ships from the map, they must have been destroyed
 
@@ -247,8 +260,7 @@ class Agent:
             if not visited:
                 destroyed_ship = self.ships.pop(ship_id, None)
                 action = destroyed_ship.destructor(obs) if destroyed_ship else None
-                if action:
-                    actions.append(action)
+                actions.extend(action)
                 del destroyed_ship
 
         # Merge actions and resolve conflicts
