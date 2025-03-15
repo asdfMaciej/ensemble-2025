@@ -193,80 +193,125 @@ class ShipICBM:
 
 
 class ShipExplorer:
+    # go right, down, left, down
+    TOP_SIDE_DIRECTIONS = (0, 1, 2, 0)
+    BOTTOM_SIDE_DIRECTIONS = (2, 3, 0, 3)
+    TRAVEL_DISTANCE_UNTIL_DIRECTION_CHANGE = (85, 10, 85, 10)
+
+    ship_travelled_in_current_direction = 0
+
+    DIRECTIONS = None
+    seen_planet = None 
+
     def __init__(self, side: int):
         self.side = side
-        # self.side = 0
-        self.down_move_counter = 0
+        self.move_direction = 0
+
+        if side == SIDE_LEFT: 
+            self.DIRECTIONS = self.TOP_SIDE_DIRECTIONS
+        else:
+            self.DIRECTIONS = self.BOTTOM_SIDE_DIRECTIONS
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> list[Move]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+        
+        if self.seen_planet is None:
+            for planet in obs['planets_occupation']:
+                # !!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!
+                # Y SWAPPED WITH X
+                # BECAUSE PLANETS X, Y ARE SWAPPED
+                # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111
 
-        direction = 0
-        move_side = self.get_move_side(x, y)
-        if move_side == 0:
-            direction = self.goDown(y)
-        elif move_side == 1:
-            direction = self.goRight(y)
-        elif move_side == 2:
-            direction = self.goLeft(y)
-        else:
-            direction = self.goUp(y)
+                planet_y, planet_x, occupation_progress = planet
+                dx = planet_y - y
+                dy = planet_x - x
+                planet_is_free = occupation_progress == -1
+                
+                # TODO: fix me xD
 
-        return [Move(ship_id=ship_id, direction=direction, speed=1)]
+                manhattan_distance = abs(dx) + abs(dy)
+                if planet_is_free: 
+                    #if manhattan_distance > 20:
+                    #    print(f"Planet {planet_x}, {planet_y} is too far away ({manhattan_distance}) from our ship {x}, {y}")
+                    #    input("")
+
+                    # TODO: determine if the found planet is close by
+                    self.seen_planet = (planet_x, planet_y)
+                    print(f"our x: {x}, our y: {y}, we can crash into planet: {planet_is_free} at position {planet_x}, {planet_y}")
+                    #input("")
+                    
+        if self.seen_planet is not None:
+            print(f"Our ship is travellign from {x}, {y} to {self.seen_planet}")
+
+            planet_x, planet_y = self.seen_planet
+            dx = planet_x - x
+            dy = planet_y - y
+
+            planet_direction = None
+            # Determine the direction to move towards the planet
+            if abs(dx) > abs(dy):
+                # Move horizontally
+                if dx > 0:
+                    planet_direction = 0  # Right
+                else:
+                    planet_direction = 2  # Left
+            else:
+                # Move vertically
+                if dy > 0:
+                    planet_direction = 1  # Down
+                else:
+                    planet_direction = 3  # Up
+            
+            
+            return [Move(ship_id=ship_id, direction=planet_direction, speed=2)]
+
+        switch_side = self.ship_travelled_in_current_direction >= self.TRAVEL_DISTANCE_UNTIL_DIRECTION_CHANGE[self.move_direction]
+        if switch_side:
+            self.ship_travelled_in_current_direction = 0
+            self.move_direction = (self.move_direction + 1) % 4
+
+        self.ship_travelled_in_current_direction += 1
+        print(self.ship_travelled_in_current_direction)
+
+        return [Move(ship_id=ship_id, direction=self.DIRECTIONS[self.move_direction], speed=2)]
 
     def destructor(self, obs: dict) -> List[Action]:
         return []
 
-    def goRight(self, dx):
-        direction = 0 if dx > 0 else 2
-        return direction
-
-    def goDown(self, dy):
-        direction = 1 if dy > 0 else 3
-        return direction
-
-    def goLeft(self, dx):
-        d = 2 if dx > 0 else 1
-        return d
-
-    def goUp(self, dy):
-        d = 3 if dy > 1 else 3
-        return d
-
-    def get_move_side(self, x, y):
-        if self.side == 0 and x != 92:
-            return 1
-        elif self.side == 0 and x == 92 and self.down_move_counter < 8:
-            self.down_move_counter += 1
-            return 0
-        elif self.side == 0 and x == 92 and self.down_move_counter == 8:
-            self.down_move_counter = 0
-            self.side = 1
-            return 2
-        elif self.side == 1 and x != 1:
-            return 2
-        elif self.side == 1 and x == 1 and self.down_move_counter < 8:
-            self.down_move_counter += 1
-            return 0
-        elif self.side == 1 and x == 1 and self.down_move_counter == 8:
-            self.down_move_counter = 0
-            self.side = 0
-            return 1
-        return 0
-
-
 class Ship:
+    LAST_POSITIONS_MAX_COUNT = 20
+
     def __init__(self, side: int, role: Optional[str] = None):
         self.role = role
         self.side = side
-        self.icbm = ShipExplorer(side=side)
+        self.icbm = ShipICBM(side=side)
         self.explorer = ShipExplorer(side=side)
+
+        self.last_positions = []
 
         # By default, the ship should be a ballistic missile
         if not self.role:
-            self.role = 'icbm'
+            self.role = 'explorer' # TODO: fix me
 
-    def get_actions(self, obs: dict, ship_data: Optional[Tuple]) -> List[Action]:
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Action]:
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+
+        if len(self.last_positions) >= self.LAST_POSITIONS_MAX_COUNT:
+            self.last_positions.pop(0)
+
+        self.last_positions.append((x, y))
+
+        if len(self.last_positions) >= self.LAST_POSITIONS_MAX_COUNT:
+            # Check if the ship is stuck
+            min_x, max_x = min(self.last_positions, key=lambda x: x[0])[0], max(self.last_positions, key=lambda x: x[0])[0]
+            min_y, max_y = min(self.last_positions, key=lambda x: x[1])[1], max(self.last_positions, key=lambda x: x[1])[1]
+
+            if abs(max_x - min_x) <= 2 and abs(max_y - min_y) <= 2:
+                # Ship is stuck
+                print(f"Our ship is stuck! x diff {abs(max_x - min_x)}, y diff {abs(max_y - min_y)}")
+                if self.role == 'explorer':
+                    self.role = 'icbm'     
+
         ship = self._get_current_ship()
         actions = ship.get_actions(obs, ship_data)
 
