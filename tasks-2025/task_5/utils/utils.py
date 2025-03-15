@@ -1,6 +1,4 @@
 from enum import IntEnum
-from matplotlib.style.core import available
-
 
 def constructor(self: object) -> None:
     self.foo = "bar"

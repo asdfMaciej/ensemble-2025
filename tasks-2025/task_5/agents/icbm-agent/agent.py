@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, List
 from abc import ABC
 
+SIDE_LEFT = 0
+SIDE_RIGHT = 1
+
 class Action(ABC):
     pass 
 
@@ -49,7 +52,9 @@ class Construction(Action):
     """
 
 class ShipICBM: 
-    def __init__(self):
+    def __init__(self, side: int):
+        self.side = side 
+
         # Keep track of each ship's move count.
         self.move_count = 0
         # Set to True on the first call to get_action.
@@ -180,8 +185,8 @@ class ShipICBM:
         return []
 
 class ShipExplorer:
-    def __init__(self):
-        pass 
+    def __init__(self, side: int):
+        self.side = side 
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
@@ -193,10 +198,11 @@ class ShipExplorer:
 
 
 class Ship: 
-    def __init__(self, role: Optional[str] = None):
+    def __init__(self, side: int, role: Optional[str] = None):
         self.role = role
-        self.icbm = ShipICBM()
-        self.explorer = ShipExplorer()
+        self.side = side 
+        self.icbm = ShipICBM(side=side)
+        self.explorer = ShipExplorer(side=side)
 
         # By default, the ship should be a ballistic missile
         if not self.role:
@@ -236,7 +242,11 @@ class Ship:
             raise ValueError(f"Invalid role: {self.role}")
 
 class Agent:
-    def __init__(self):
+    def __init__(self, side: int):
+        """ 
+        :param side: Indicates whether the player is on left side (0) or right side (1)
+        """
+        self.side = side
         self.ships = {}
 
     def get_action(self, obs: dict) -> dict:
@@ -248,7 +258,7 @@ class Agent:
         for n, ship_data in enumerate(obs['allied_ships']):
             ship_id = ship_data[0]
             if ship_id not in self.ships:
-                self.ships[ship_id] = Ship()
+                self.ships[ship_id] = Ship(side=self.side)
             visited_ids[ship_id] = True
 
             ship = self.ships[ship_id]
