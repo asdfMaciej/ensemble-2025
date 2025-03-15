@@ -3,9 +3,7 @@ name: Test All Modified Agents
 on:
   push:
     branches:
-      - CI/CD-test
-    paths:
-      - 'task_5/agents/**' 
+      -CI/CD-test
 
 jobs:
   detect-and-run:
