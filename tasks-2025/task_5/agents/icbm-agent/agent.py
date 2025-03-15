@@ -14,6 +14,11 @@ class Action(ABC):
     pass
 
 
+class AbstractShip(ABC):
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
+        pass
+    pass
+
 @dataclass
 class Shoot(Action):
     """
@@ -58,8 +63,7 @@ class Construction(Action):
     0-10
     """
 
-
-class ShipICBM:
+class ShipICBM(AbstractShip):
     def __init__(self, side: int):
         self.side = side
 
@@ -86,51 +90,6 @@ class ShipICBM:
         self.current_data_points = self.data_points[0]
         # This flag will be set based on the starting ship position.
         self.is_player1 = None
-
-    def decode_tile(self, tile_value: int) -> dict:
-        """
-        Decode an 8-bit encoded map tile.
-
-        Parameters:
-            tile_value (int): The encoded value of the tile.
-                              -1 indicates the tile is not visible.
-
-        Returns:
-            dict: Contains:
-                  - 'visible': bool, True if the tile is visible.
-                  - 'tile_type': int, the lower 6 bits representing the tile type.
-                  - 'owned_by_player1': bool, True if bit 6 is set.
-                  - 'owned_by_player2': bool, True if bit 7 is set.
-        """
-        if tile_value == -1:
-            return {"visible": False}
-
-        tile_type = tile_value & 63
-        owned_by_player1 = (tile_value & 64) == 64
-        owned_by_player2 = (tile_value & 128) == 128
-
-        return {
-            "visible": True,
-            "tile_type": tile_type,
-            "owned_by_player1": owned_by_player1,
-            "owned_by_player2": owned_by_player2
-        }
-
-    def find_available_planets(self, map_data: list) -> list:
-        """
-        Find available planets on the map and return their coordinates.
-        (A planet is defined as a visible tile with tile_type 9 that is not owned.)
-        """
-        available_planets = []
-        for row_idx, row in enumerate(map_data):
-            for col_idx, tile in enumerate(row):
-                if tile == -1:
-                    continue
-                tile_info = self.decode_tile(tile)
-                if tile_info["visible"] and tile_info["tile_type"] == 9 and not (
-                        tile_info["owned_by_player1"] or tile_info["owned_by_player2"]):
-                    available_planets.append((row_idx, col_idx))
-        return available_planets
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
@@ -190,7 +149,33 @@ class ShipICBM:
             return [Construction(ships_count=1)]
 
         return []
+class ShipICBMv2(AbstractShip):
+    def __init__(self, side: int):
+        self.side = side
+        self.target = []
+        self.move_count = 0
 
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
+        map = obs['map']
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+
+        if not self.target:
+            if self.side == SIDE_LEFT:
+                self.target = [90, 90]
+            else:
+                self.target = [10, 10]
+
+        self.move_count += 1
+
+        direction, step = find_path([x,y], self.target, map)
+        return [Move(ship_id=ship_id, direction=direction, speed=step)]
+
+    def destructor(self, obs: dict) -> List[Action]:
+        # If our ICBM has been destroyed, and we have >= 200 gold,
+        # we can automatically build a new ship.
+        if can_build_ship(obs):
+            return [Construction(ships_count=1)]
+        return []
 
 class ShipExplorer:
     # go right, down, left, down
@@ -286,12 +271,13 @@ class Ship:
         self.side = side
         self.icbm = ShipICBM(side=side)
         self.explorer = ShipExplorer(side=side)
+        self.icbmV2 = ShipICBMv2(side=side)
 
         self.last_positions = []
 
         # By default, the ship should be a ballistic missile
         if not self.role:
-            self.role = 'explorer' # TODO: fix me
+            self.role = 'icbmv2' # TODO: fix me
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Action]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
@@ -310,7 +296,7 @@ class Ship:
                 # Ship is stuck
                 print(f"Our ship is stuck! x diff {abs(max_x - min_x)}, y diff {abs(max_y - min_y)}")
                 if self.role == 'explorer':
-                    self.role = 'icbm'     
+                    self.role = 'icbmv2'     
 
         ship = self._get_current_ship()
         actions = ship.get_actions(obs, ship_data)
@@ -341,27 +327,47 @@ class Ship:
             return self.icbm
         elif self.role == 'explorer':
             return self.explorer
+        elif self.role == 'icbmv2':
+            return self.icbmV2
         else:
             raise ValueError(f"Invalid role: {self.role}")
 
 
 class Agent:
+    side = None 
     def __init__(self, side: int):
         """ 
         :param side: Indicates whether the player is on left side (0) or right side (1)
         """
         self.side = side
         self.ships = {}
+        self.home_planet = (None, None)
+        self.first_run = True
+        self.constructed_ships = 0
+        """Tuple - (x, y), default value"""
 
     def get_action(self, obs: dict) -> dict:
+        if self.home_planet[0] is None:
+            for planet in obs.get('planets_occupation', []):
+                if planet[0] == 9 and planet[1] == 9:
+                    self.home_planet = ((9, 9), planet[2])
+                elif planet[0] == 90 and planet[1] == 90:
+                    self.home_planet = ((90, 90), planet[2])
+                break
+
         ships_count = len(obs['allied_ships'])
 
         actions: List[Action] = []
+
+        if self.first_run:
+            self.first_run = False
+            actions.append(Construction(ships_count=1))
 
         visited_ids = {ship_id: False for ship_id in self.ships.keys()}
         for n, ship_data in enumerate(obs['allied_ships']):
             ship_id = ship_data[0]
             if ship_id not in self.ships:
+                self.constructed_ships += 1
                 self.ships[ship_id] = Ship(side=self.side)
             visited_ids[ship_id] = True
 
@@ -395,8 +401,13 @@ class Agent:
 
         # Let's always build ships if we have safety net
         if can_build_ship_with_safety_net(obs):
-            construction_max = max(1, construction_max)
+            print("cranking out a ship just because we can")
+            construction_max = maximum_ships_we_can_build_with_safety_net(obs)
 
+        if is_our_home_planet_occupied(obs, self.home_planet):
+            print("Our home planet is occupied - want to crank out a ship!")
+            construction_max = maximum_ships_we_can_build_with_safety_net(obs)
+        
         result = {
             "ships_actions": ship_actions,
             "construction": construction_max

@@ -10,3 +10,4 @@ onnxruntime
 onnx
 pandas
 requests
+scipy
