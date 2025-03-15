@@ -174,6 +174,12 @@ class ShipICBM:
 
         return result_action
 
+    def destructor(self, obs: dict) -> Optional[Action]:
+        # If our ICBM has been destroyed, and we have >= 200 gold,
+        # we can automatically build a new ship.
+        if can_build_ship(obs):
+            return Construction(ships_count=1)
+
 class ShipExplorer:
     def __init__(self):
         pass 
@@ -184,34 +190,49 @@ class ShipExplorer:
 
         return None
 
+    def destructor(self, obs: dict) -> Optional[Action]:
+        return None
+
 
 class Ship: 
     def __init__(self, role: Optional[str] = None):
         self.role = role
         self.icbm = ShipICBM()
         self.explorer = ShipExplorer()
+
+        # By default, the ship should be a ballistic missile
+        if not self.role:
+            self.role = 'icbm'
     
     def get_action(self, obs: dict, ship_data: Optional[Tuple]) -> Optional[Action]:
-        # todo: starting role for new ship
-        action = self.icbm.get_action(obs, ship_data)
+        ship = self._get_current_ship()
+        action = ship.get_action(obs, ship_data)
         return action 
+
+    def destructor(self, obs: dict) -> Optional[Action]:
+        ship = self._get_current_ship()
+        action = ship.destructor(obs)
+        return action
+    
+    def _get_current_ship(self):
+        if self.role == 'icbm':
+            return self.icbm
+        elif self.role == 'explorer':
+            return self.explorer
+        else:
+            raise ValueError(f"Invalid role: {self.role}")
 
 class Agent:
     def __init__(self):
         self.ships = {}
 
     def get_action(self, obs: dict) -> dict:
-        ships = obs['allied_ships']
-        if not ships:
-            return {
-                "ships_actions": [],
-                "construction": 1
-            }
+        ships_count = len(obs['allied_ships'])
 
         actions: List[Action] = []
 
         visited_ids = {ship_id: False for ship_id in self.ships.keys()}
-        for n, ship_data in enumerate(ships):
+        for n, ship_data in enumerate(obs['allied_ships']):
             ship_id = ship_data[0]
             if ship_id not in self.ships:
                 self.ships[ship_id] = Ship()
@@ -220,12 +241,15 @@ class Agent:
             ship = self.ships[ship_id]
             actions.append(ship.get_action(obs, ship_data))
 
-        # Ensure all ships have been processed
-        # if not - they're currently not on the map, so they must have been destroyed 
+        # If we didn't process some ships from the map, they must have been destroyed
+
         for ship_id, visited in visited_ids.items():
             if not visited:
-                # TODO: could process a ship destructor
-                self.ships.pop(ship_id, None)
+                destroyed_ship = self.ships.pop(ship_id, None)
+                action = destroyed_ship.destructor(obs) if destroyed_ship else None
+                if action:
+                    actions.append(action)
+                del destroyed_ship
 
         # Merge actions and resolve conflicts
         ship_actions, construction_max = [], 0
@@ -238,6 +262,14 @@ class Agent:
 
             else:
                 pass # ship decided to do nothing
+        
+        # If we don't have a ship, we must build one 
+        if ships_count == 0:
+            construction_max = max(1, construction_max)
+
+        # Let's always build ships if we have safety net
+        if can_build_ship_with_safety_net(obs):
+            construction_max = max(1, construction_max)
 
         result = {
             "ships_actions": ship_actions,
