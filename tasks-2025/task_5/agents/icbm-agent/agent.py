@@ -1,10 +1,57 @@
 from task_5.utils.utils import * # DO NOT TOUCH THIS FIRST LINE!!!
 import random
+from dataclasses import dataclass
+from typing import Optional, Tuple, List
+from abc import ABC
 
-class Agent:
+class Action(ABC):
+    pass 
+
+@dataclass
+class Shoot(Action): 
+    """
+    DON'T SHOOT! WE'RE A PEACEFUL TEAM!
+    """
+
+    ship_id: int 
+    direction: int 
+    """ 
+    0 - right
+    1 - down
+    2 - left 
+    3 - up
+    """
+    def to_game_format(self) -> object:
+        return [self.ship_id, 1, self.direction]
+
+@dataclass
+class Move(Action):
+    ship_id: int 
+    direction: int 
+    """ 
+    0 - right
+    1 - down
+    2 - left 
+    3 - up
+    """
+
+    speed: int 
+    """1-3""" 
+
+    def to_game_format(self) -> object: 
+        return [self.ship_id, 0, self.direction, self.speed]
+
+@dataclass
+class Construction(Action):
+    ships_count: int 
+    """
+    0-10
+    """
+
+class ShipICBM: 
     def __init__(self):
         # Keep track of each ship's move count.
-        self.ships_moves = {}
+        self.move_count = 0
         # Set to True on the first call to get_action.
         self.is_first_turn = True
         # Data points for top and bottom players.
@@ -26,6 +73,7 @@ class Agent:
         self.current_data_points = self.data_points[0]
         # This flag will be set based on the starting ship position.
         self.is_player1 = None
+
 
     def decode_tile(self, tile_value: int) -> dict:
         """
@@ -72,21 +120,14 @@ class Agent:
                     available_planets.append((row_idx, col_idx))
         return available_planets
 
-    def get_action(self, obs: dict) -> dict:
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+    
         ships_actions = []
-        ships = obs['allied_ships']
-
-        # If no ships, try to construct one.
-        if len(ships) == 0:
-            return {
-                "ships_actions": [],
-                "construction": 1
-            }
 
         # On the first turn, determine starting side.
         if self.is_first_turn:
             # Use the first allied ship to decide.
-            ship_id, x, y, hp, fire_cooldown, move_cooldown = ships[0]
             # Here we assume that if x < 50 the player starts on top; otherwise on bottom.
             if x < 50:
                 self.is_player1 = True
@@ -96,44 +137,159 @@ class Agent:
                 self.current_data_points = self.data_points[1]
             self.is_first_turn = False
 
-        # Process each allied ship.
-        for ship in ships:
-            ship_id, x, y, hp, fire_cooldown, move_cooldown = ship
+        increase_move_count = True
+        result_action = None
+        # Use different logic for top (is_player1) vs bottom players.
+        if self.is_player1:
+            # For top players: lower x values.
+            if x < self.current_data_points['threshold1']:
+                # If x is very low, use a move from our move list with direction 2.
+                move_code = self.current_data_points['moves'][self.move_count % len(self.current_data_points['moves'])]
+                result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
+            elif self.current_data_points['threshold1'] <= x < self.current_data_points['threshold2']:
+                move_code = self.current_data_points['moves'][self.move_count % len(self.current_data_points['moves'])]
+                result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
+            else:  # x >= threshold2
+                result_action = Move(ship_id=ship_id, direction=1, speed=2)
+                increase_move_count = False 
+        else:
+            # For bottom players: higher x values.
+            if x > self.current_data_points['threshold1']:
+                move_code = self.current_data_points['moves'][self.move_count % len(self.current_data_points['moves'])]
+                ships_actions.append([ship_id, 0, move_code, 2])
+                result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
+            elif self.current_data_points['threshold2'] < x <= self.current_data_points['threshold1']:
+                move_code = self.current_data_points['moves'][self.move_count % len(self.current_data_points['moves'])]
+                result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
+            else:  # x <= threshold2
+                ships_actions.append([ship_id, 0, 3, 2])
+                result_action = Move(ship_id=ship_id, direction=3, speed=2)
+                increase_move_count = False 
 
-            if ship_id not in self.ships_moves:
-                self.ships_moves[ship_id] = 0
+        if increase_move_count:
+            self.move_count += 1
 
-            # Use different logic for top (is_player1) vs bottom players.
-            if self.is_player1:
-                # For top players: lower x values.
-                if x < self.current_data_points['threshold1']:
-                    # If x is very low, use a move from our move list with direction 2.
-                    move_code = self.current_data_points['moves'][self.ships_moves[ship_id] % len(self.current_data_points['moves'])]
-                    ships_actions.append([ship_id, 0, move_code, 2])
-                elif self.current_data_points['threshold1'] <= x < self.current_data_points['threshold2']:
-                    move_code = self.current_data_points['moves'][self.ships_moves[ship_id] % len(self.current_data_points['moves'])]
-                    ships_actions.append([ship_id, 0, move_code, 1])
-                else:  # x >= threshold2
-                    ships_actions.append([ship_id, 0, 1, 2])
-                    continue  # Skip move count update if taking fixed action.
+        return [result_action]
+
+    def destructor(self, obs: dict) -> List[Action]:
+        # If our ICBM has been destroyed, and we have >= 200 gold,
+        # we can automatically build a new ship.
+        if can_build_ship(obs):
+            return [Construction(ships_count=1)]
+
+        return []
+
+class ShipExplorer:
+    def __init__(self):
+        pass 
+
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+
+        return []
+
+    def destructor(self, obs: dict) -> List[Action]:
+        return []
+
+
+class Ship: 
+    def __init__(self, role: Optional[str] = None):
+        self.role = role
+        self.icbm = ShipICBM()
+        self.explorer = ShipExplorer()
+
+        # By default, the ship should be a ballistic missile
+        if not self.role:
+            self.role = 'icbm'
+    
+    def get_actions(self, obs: dict, ship_data: Optional[Tuple]) -> List[Action]:
+        ship = self._get_current_ship()
+        actions = ship.get_actions(obs, ship_data)
+        
+        # Ensure that ships don't return invalid data
+        move_or_shoot_found = False 
+        filtered_actions = []
+        for action in actions:
+            if action and isinstance(action, (Move, Shoot)):
+                if not move_or_shoot_found:
+                    move_or_shoot_found = True
+                else:
+                    raise ValueError("Ship can only move or shoot once in a single turn.")
+                    # TODO - if we push to production, create a failsafe to do something
+            if action:
+                filtered_actions.append(action)
+
+        return actions
+
+    def destructor(self, obs: dict) -> List[Action]:
+        ship = self._get_current_ship()
+        actions = ship.destructor(obs)
+        # TODO: validate actions such as in get_actions if necessary
+        return actions
+    
+    def _get_current_ship(self):
+        if self.role == 'icbm':
+            return self.icbm
+        elif self.role == 'explorer':
+            return self.explorer
+        else:
+            raise ValueError(f"Invalid role: {self.role}")
+
+class Agent:
+    def __init__(self):
+        self.ships = {}
+
+    def get_action(self, obs: dict) -> dict:
+        ships_count = len(obs['allied_ships'])
+
+        actions: List[Action] = []
+
+        visited_ids = {ship_id: False for ship_id in self.ships.keys()}
+        for n, ship_data in enumerate(obs['allied_ships']):
+            ship_id = ship_data[0]
+            if ship_id not in self.ships:
+                self.ships[ship_id] = Ship()
+            visited_ids[ship_id] = True
+
+            ship = self.ships[ship_id]
+            actions.extend(ship.get_actions(obs, ship_data))
+
+        # If we didn't process some ships from the map, they must have been destroyed
+
+        for ship_id, visited in visited_ids.items():
+            if not visited:
+                destroyed_ship = self.ships.pop(ship_id, None)
+                action = destroyed_ship.destructor(obs) if destroyed_ship else None
+                actions.extend(action)
+                del destroyed_ship
+
+        # Merge actions and resolve conflicts
+        ship_actions, construction_max = [], 0
+        for action in actions:
+            if isinstance(action, Construction):
+                construction_max = max(construction_max, action.ships_count)
+            
+            elif isinstance(action, Action):
+                ship_actions.append(action.to_game_format())
+
             else:
-                # For bottom players: higher x values.
-                if x > self.current_data_points['threshold1']:
-                    move_code = self.current_data_points['moves'][self.ships_moves[ship_id] % len(self.current_data_points['moves'])]
-                    ships_actions.append([ship_id, 0, move_code, 2])
-                elif self.current_data_points['threshold2'] < x <= self.current_data_points['threshold1']:
-                    move_code = self.current_data_points['moves'][self.ships_moves[ship_id] % len(self.current_data_points['moves'])]
-                    ships_actions.append([ship_id, 0, move_code, 1])
-                else:  # x <= threshold2
-                    ships_actions.append([ship_id, 0, 3, 2])
-                    continue
+                pass # ship decided to do nothing
+        
+        # If we don't have a ship, we must build one 
+        if ships_count == 0:
+            construction_max = max(1, construction_max)
 
-            self.ships_moves[ship_id] += 1
+        # Let's always build ships if we have safety net
+        if can_build_ship_with_safety_net(obs):
+            construction_max = max(1, construction_max)
 
-        return {
-            "ships_actions": ships_actions,
-            "construction": 0
+        result = {
+            "ships_actions": ship_actions,
+            "construction": construction_max
         }
+
+        return result
+    
 
     def load(self, abs_path: str):
         """
