@@ -1,5 +1,26 @@
 from task_5.utils.utils import * # DO NOT TOUCH THIS FIRST LINE!!!
 
+class ActionReturn:
+    def __init__(self, ships_actions=None, construction=0):
+        self.ships_actions = ships_actions if ships_actions is not None else []
+        self.construction = construction
+
+    def add_movement_action(self, ship_id: int, direction: int, speed: int):
+        self.ships_actions.append((ship_id, 0, direction, speed))
+
+    def add_firing_action(self, ship_id: int, direction: int):
+        self.ships_actions.append((ship_id, 1, direction, 0))
+
+    def to_dict(self) -> dict:
+        return {
+            "ships_actions": self.ships_actions,
+            "construction": self.construction
+        }
+
+    def __repr__(self):
+        return f"ActionReturn(ships_actions={self.ships_actions}, construction={self.construction})"
+
+
 class Agent:
     def __init__(self):
         constructor(self)
