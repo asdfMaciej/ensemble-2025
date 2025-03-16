@@ -149,6 +149,8 @@ class ShipICBM(AbstractShip):
             return [Construction(ships_count=1)]
 
         return []
+    
+
 class ShipICBMv2(AbstractShip):
     def __init__(self, side: int):
         self.side = side
@@ -176,6 +178,160 @@ class ShipICBMv2(AbstractShip):
         if can_build_ship(obs):
             return [Construction(ships_count=1)]
         return []
+
+
+class ShipDefender(AbstractShip):
+    def __init__(self, side: int):
+        self.side = side 
+
+        # Keep track of each ship's move count.
+        self.move_count = 0
+        # Set to True on the first call to get_action.
+        self.is_first_turn = True
+        self.ready_to_shoot = False
+        # Data points for top and bottom players.
+        # For top players, we assume lower x values (e.g., x < 50);
+        # for bottom players, higher x values.
+        self.data_points = [
+            {
+                "moves": [0, 1],
+                "threshold1": 90,  # e.g., if x < 10: use one move
+                "threshold2": 85   # if 10 <= x < 15: use another
+            },
+            {
+                "moves": [2, 3],
+                "threshold1": 10,  # for bottom players, if x > 90: use one move
+                "threshold2": 15   # if 85 < x <= 90: use another
+            }
+        ]
+        # Default to top-player data (will be updated on first turn).
+        self.current_data_points = self.data_points[0]
+        # This flag will be set based on the starting ship position.
+        self.is_player1 = None
+
+
+    def decode_tile(self, tile_value: int) -> dict:
+        """
+        Decode an 8-bit encoded map tile.
+
+        Parameters:
+            tile_value (int): The encoded value of the tile.
+                              -1 indicates the tile is not visible.
+
+        Returns:
+            dict: Contains:
+                  - 'visible': bool, True if the tile is visible.
+                  - 'tile_type': int, the lower 6 bits representing the tile type.
+                  - 'owned_by_player1': bool, True if bit 6 is set.
+                  - 'owned_by_player2': bool, True if bit 7 is set.
+        """
+        if tile_value == -1:
+            return {"visible": False}
+
+        tile_type = tile_value & 63
+        owned_by_player1 = (tile_value & 64) == 64
+        owned_by_player2 = (tile_value & 128) == 128
+
+        return {
+            "visible": True,
+            "tile_type": tile_type,
+            "owned_by_player1": owned_by_player1,
+            "owned_by_player2": owned_by_player2
+        }
+
+    def find_available_planets(self, map_data: list) -> list:
+        """
+        Find available planets on the map and return their coordinates.
+        (A planet is defined as a visible tile with tile_type 9 that is not owned.)
+        """
+        available_planets = []
+        for row_idx, row in enumerate(map_data):
+            for col_idx, tile in enumerate(row):
+                if tile == -1:
+                    continue
+                tile_info = self.decode_tile(tile)
+                if tile_info["visible"] and tile_info["tile_type"] == 9 and not (
+                        tile_info["owned_by_player1"] or tile_info["owned_by_player2"]):
+                    available_planets.append((row_idx, col_idx))
+        return available_planets
+
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+    
+        ships_actions = []
+
+        # On the first turn, determine starting side.
+        if self.is_first_turn:
+            # Use the first allied ship to decide.
+            # Here we assume that if x < 50 the player starts on top; otherwise on bottom.
+            if x < 50:
+                self.is_player1 = True
+                self.current_data_points = self.data_points[0]
+            else:
+                self.is_player1 = False
+                self.current_data_points = self.data_points[1]
+            self.is_first_turn = False
+
+        increase_move_count = True
+        result_action = None
+
+        if self.is_player1:
+            if ship_id%2 == 0:
+                if self.ready_to_shoot:
+                    result_action = Shoot(ship_id=ship_id, direction=1)
+                elif x<16:
+                    result_action = Move(ship_id=ship_id, direction=0, speed=2)
+                elif y<9:
+                    result_action = Move(ship_id=ship_id, direction=1, speed=2)
+                else:
+                    result_action = Move(ship_id=ship_id, direction=1, speed=1)
+                    self.ready_to_shoot = True
+            else:
+                if self.ready_to_shoot:
+                    result_action = Shoot(ship_id=ship_id, direction=0)
+                elif x>6:
+                    result_action = Move(ship_id=ship_id, direction=2, speed=2)
+                elif y<16:
+                    result_action = Move(ship_id=ship_id, direction=1, speed=2)
+                else:
+                    result_action = Move(ship_id=ship_id, direction=0, speed=1)
+                    self.ready_to_shoot = True
+        else:
+            if ship_id%2 == 0:
+                if self.ready_to_shoot:
+                    result_action = Shoot(ship_id=ship_id, direction=3)
+                elif x>82:
+                    result_action = Move(ship_id=ship_id, direction=2, speed=2)
+                elif y<90:
+                    result_action = Move(ship_id=ship_id, direction=1, speed=2)
+                else:
+                    result_action = Move(ship_id=ship_id, direction=3, speed=1)
+                    self.ready_to_shoot = True
+            else:
+                if self.ready_to_shoot:
+                    result_action = Shoot(ship_id=ship_id, direction=2)
+                elif x<94:
+                    result_action = Move(ship_id=ship_id, direction=0, speed=2)
+                elif y>85:
+                    result_action = Move(ship_id=ship_id, direction=3, speed=2)
+                else:
+                    result_action = Move(ship_id=ship_id, direction=2, speed=1)
+                    self.ready_to_shoot = True
+        if increase_move_count:
+            self.move_count += 1
+
+        return [result_action]
+
+    def destructor(self, obs: dict) -> List[Action]:
+        # If our ICBM has been destroyed, and we have >= 200 gold,
+        # we can automatically build a new ship.
+        if can_build_ship(obs):
+            return [Construction(ships_count=1)]
+
+        return []
+
+
+
 
 class ShipExplorer:
     # go right, down, left, down
@@ -272,6 +428,7 @@ class Ship:
         self.icbm = ShipICBM(side=side)
         self.explorer = ShipExplorer(side=side)
         self.icbmV2 = ShipICBMv2(side=side)
+        self.defender = ShipDefender(side=side)
 
         self.last_positions = []
 
@@ -329,6 +486,8 @@ class Ship:
             return self.explorer
         elif self.role == 'icbmv2':
             return self.icbmV2
+        elif self.role == 'defender':
+            return self.defender
         else:
             raise ValueError(f"Invalid role: {self.role}")
 
