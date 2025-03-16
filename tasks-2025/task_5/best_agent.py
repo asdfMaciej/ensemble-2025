@@ -113,10 +113,10 @@ def field_weight(field: FieldType, distance) -> int:
     if field == FieldType.SPACE:
         return 0
     elif field == FieldType.ASTEROID:
-        return 70
+        return 2
     elif field == FieldType.IONIZED_FIELD:
-        return -20
-    elif field.is_planet() and distance > 10:
+        return -10
+    elif not field.is_occupied() and field.is_planet() and field :
         return 1200
     elif not field.is_occupied() and field.is_planet():
         return 9000
@@ -135,9 +135,7 @@ def search_move(start, end, map_data, visited, depth):
 
     Base case: when depth is 0, no further moves are simulated.
     """
-    # Base case: no further simulation
     if depth == 0:
-        # Use the Manhattan distance as a heuristic cost.
         return ([], find_distance(start, end))
 
     num_rows = len(map_data)
@@ -147,9 +145,11 @@ def search_move(start, end, map_data, visited, depth):
 
     # Determine possible jump distances.
     possible_jumps = [1, 2]
-    # Check if current cell is ionized.
     if FieldType.decode_tile(map_data[start[0]][start[1]]) == FieldType.IONIZED_FIELD:
         possible_jumps.append(3)
+
+    # Define a factor to heavily penalize walking away from the target.
+    backward_penalty_factor = 100
 
     # For each jump, try all four directions.
     # Moves: 0: UP, 1: RIGHT, 2: DOWN, 3: LEFT.
@@ -162,16 +162,21 @@ def search_move(start, end, map_data, visited, depth):
         ]
         for (new_pos, direction) in moves:
             x, y = new_pos
-            # Out-of-bounds or already visited? Assign infinite cost.
+            # Out-of-bounds or already visited? Skip this move.
             if x < 0 or x >= num_rows or y < 0 or y >= num_cols or (x, y) in visited:
-                immediate_cost = float('inf')
-            else:
-                # Immediate cost: weighted Manhattan distance plus cell weight, minus jump bonus.
-                distance = find_distance(new_pos, end)
-                immediate_cost = (find_distance(new_pos, end) +
-                                  field_weight(FieldType.decode_tile(map_data[x][y]), distance) - jump)
-            if immediate_cost == float('inf'):
                 continue
+            else:
+                # Calculate the Manhattan distance from the new position and the current position.
+                new_distance = find_distance(new_pos, end)
+                current_distance = find_distance(start, end)
+                # Immediate cost: distance + field weight minus jump bonus.
+                immediate_cost = (new_distance +
+                                  field_weight(FieldType.decode_tile(map_data[x][y]), new_distance) - jump)
+                # If moving away from the target, add a penalty proportional to the difference.
+                if new_distance > current_distance:
+                    immediate_cost += (new_distance - current_distance) * backward_penalty_factor
+
+            # If the new position is the target, return immediately.
             if new_pos == end:
                 return ([new_pos], -float('inf'))
 
@@ -181,7 +186,7 @@ def search_move(start, end, map_data, visited, depth):
             subsequent_moves, subsequent_cost = search_move(new_pos, end, map_data, new_visited, depth - 1)
             total_cost = immediate_cost + subsequent_cost
 
-            # Update best sequence, using random tie-breaking if costs are equal.
+            # Update best sequence, with random tie-breaking if costs are equal.
             if total_cost < best_cost:
                 best_cost = total_cost
                 best_seq = [(direction, jump)] + subsequent_moves
@@ -190,9 +195,7 @@ def search_move(start, end, map_data, visited, depth):
                     best_seq = [(direction, jump)] + subsequent_moves
 
     if best_seq is None:
-        # No valid move found; return an empty sequence and use the heuristic cost.
         return ([], find_distance(start, end))
-
     return (best_seq, best_cost)
 
 
@@ -207,10 +210,6 @@ def find_path(start: [int, int], end: [int, int], map_data: list[list[int]], vis
       1: RIGHT -> (start[0], start[1] + jump)
       2: DOWN  -> (start[0] + jump, start[1])
       3: LEFT  -> (start[0], start[1] - jump)
-
-    The cost for a move is calculated as:
-         (find_distance(move, end) * 2 + field_weight(move's cell) - jump)
-    A move going out-of-bounds or to a previously visited cell gets an infinite cost.
 
     Args:
         start (list[int, int]): Current position.
@@ -228,15 +227,9 @@ def find_path(start: [int, int], end: [int, int], map_data: list[list[int]], vis
 
     best_seq, _ = search_move(start, end, map_data, visited, depth)
     if best_seq:
-        # Return the immediate move (direction, jump) from the best sequence.
-        return [visited,best_seq[0]]
+        return [visited, best_seq[0]]
     else:
-        # No valid move found. You may choose to return None or a default value.
         return [visited, (0, 0)]
-
-
-
-
 from abc import ABC
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
@@ -388,31 +381,51 @@ class ShipICBM(AbstractShip):
         return []
     
 
+import random
+
 class ShipICBMv2(AbstractShip):
     def __init__(self, side: int):
         self.side = side
         self.target = []
         self.move_count = 0
         self.visited = set()
+        self.last_position = None
+        self.stuck_counter = 0
 
+    def set_target(self, target):
+        self.target = target
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
-        map = obs['map']
+        map_data = obs['map']
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
-
-        if not self.target:
-            if self.side == SIDE_LEFT:
-                self.target = [90, 90]
-            else:
-                self.target = [10, 10]
 
         self.move_count += 1
 
-        visited, move = find_path([x,y], self.target, map, self.visited)
+        # Check if the ship hasn't moved (stuck in same cell).
+        if self.last_position == (x, y):
+            self.stuck_counter += 1
+        else:
+            self.stuck_counter = 0
+        self.last_position = (x, y)
 
+        #print(self.target)
+        if(len(self.target) == 0):
+            return []
+        # Use our path-finding function.
+        visited, move = find_path([x, y], self.target, map_data, self.visited)
         direction, step = move
 
-        self.visited=visited
+        # If we receive a default move (0, 0) or have been stuck for more than 3 moves,
+        # then reset the visited set and choose a random move to try to break the blockade.
+        if (direction, step) == (0, 0) or self.stuck_counter > 3:
+            self.visited = set()  # Reset visited to allow re-exploration.
+            direction = random.choice([0, 1, 2, 3])
+            step = 1
+            self.stuck_counter = 0
+
+        # Update the visited set.
+        self.visited = visited
+
         return [Move(ship_id=ship_id, direction=direction, speed=step)]
 
     def destructor(self, obs: dict) -> List[Action]:
@@ -747,7 +760,7 @@ class ShipBackdoor:
         return []
 
 class Ship:
-    LAST_POSITIONS_MAX_COUNT = 20
+    LAST_POSITIONS_MAX_COUNT = 40
 
     def __init__(self, is_even_id: bool, side: int, role: Optional[str] = None):
         self.role = role
@@ -765,8 +778,17 @@ class Ship:
         if not self.role:
             self.role = 'defender' # FIXME: fix me
 
+    start_pos = None
+
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Action]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+        if self.start_pos is None:
+            targets = [[10, 10], [90, 90]]
+            distances = [find_distance(distance, [x,y]) for distance in targets]
+            self.start_pos = targets[distances.index(min(distances))]
+
+            self.icbmV2.target =  targets[distances.index(max(distances))]
+
 
         if len(self.last_positions) >= self.LAST_POSITIONS_MAX_COUNT:
             self.last_positions.pop(0)
@@ -778,7 +800,7 @@ class Ship:
             min_x, max_x = min(self.last_positions, key=lambda x: x[0])[0], max(self.last_positions, key=lambda x: x[0])[0]
             min_y, max_y = min(self.last_positions, key=lambda x: x[1])[1], max(self.last_positions, key=lambda x: x[1])[1]
 
-            if abs(max_x - min_x) <= 2 and abs(max_y - min_y) <= 2:
+            if abs(max_x - min_x) <= 3 and abs(max_y - min_y) <= 3:
                 # Ship is stuck
                 #print(f"Our ship is stuck! x diff {abs(max_x - min_x)}, y diff {abs(max_y - min_y)}")
                 if self.role == 'explorer':
@@ -846,6 +868,7 @@ class Agent:
         self.constructed_ships = 0
         self.explorer_created = False 
         self.defenders = {"even": None, "odd": None}
+        self.explorer = None
         """Tuple - (x, y), default value"""
         self.icbm_created = False
     
@@ -871,7 +894,7 @@ class Agent:
             return 'explorer', False
         """
         #self.icbm_created = True
-        if self.constructed_ships % 3 == 0:
+        if self.constructed_ships % 3 == 0 and self.explorer is None:
             return 'explorer', False
         return 'icbm', False
 
@@ -900,9 +923,11 @@ class Agent:
                 self.ships[ship_id] = Ship(is_even_id=is_even_id, side=self.side, role=role)
                 if role == 'defender':
                     if is_even_id:
-                        self.defenders['even'] = ship_id 
+                        self.defenders['even'] = ship_id
                     if not is_even_id:
                         self.defenders['odd'] = ship_id
+                if role == 'explorer':
+                    self.explorer = ship_id
                 self.constructed_ships += 1
             visited_ids[ship_id] = True
 
@@ -921,6 +946,8 @@ class Agent:
                     self.defenders['even'] = None
                 if self.defenders['odd'] == ship_id:
                     self.defenders['odd'] = None
+                if self.explorer == ship_id:
+                    self.explorer = None
                 del destroyed_ship
 
         # Merge actions and resolve conflicts
@@ -934,7 +961,7 @@ class Agent:
 
             else:
                 pass  # ship decided to do nothing
-        
+
         """
         # If we don't have a ship, we must build one 
         if ships_count == 0:
@@ -952,7 +979,7 @@ class Agent:
         construction_max = max(1, construction_max)
         # ALWAYS BUILD SHIPS!!!!!!!!
         # MORE SHIPS!
-        
+
         result = {
             "ships_actions": ship_actions,
             "construction": construction_max

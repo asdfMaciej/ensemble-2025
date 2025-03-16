@@ -178,7 +178,7 @@ class ShipICBMv2(AbstractShip):
             self.stuck_counter = 0
         self.last_position = (x, y)
 
-        print(self.target)
+        #print(self.target)
         if(len(self.target) == 0):
             return []
         # Use our path-finding function.
@@ -530,7 +530,7 @@ class ShipBackdoor:
         return []
 
 class Ship:
-    LAST_POSITIONS_MAX_COUNT = 20
+    LAST_POSITIONS_MAX_COUNT = 40
 
     def __init__(self, is_even_id: bool, side: int, role: Optional[str] = None):
         self.role = role
@@ -570,7 +570,7 @@ class Ship:
             min_x, max_x = min(self.last_positions, key=lambda x: x[0])[0], max(self.last_positions, key=lambda x: x[0])[0]
             min_y, max_y = min(self.last_positions, key=lambda x: x[1])[1], max(self.last_positions, key=lambda x: x[1])[1]
 
-            if abs(max_x - min_x) <= 2 and abs(max_y - min_y) <= 2:
+            if abs(max_x - min_x) <= 3 and abs(max_y - min_y) <= 3:
                 # Ship is stuck
                 #print(f"Our ship is stuck! x diff {abs(max_x - min_x)}, y diff {abs(max_y - min_y)}")
                 if self.role == 'explorer':
@@ -638,6 +638,7 @@ class Agent:
         self.constructed_ships = 0
         self.explorer_created = False 
         self.defenders = {"even": None, "odd": None}
+        self.explorer = None
         """Tuple - (x, y), default value"""
         self.icbm_created = False
     
@@ -663,9 +664,9 @@ class Agent:
             return 'explorer', False
         """
         #self.icbm_created = True
-        if self.constructed_ships % 3 == 0:
+        if self.constructed_ships % 3 == 0 and self.explorer is None:
             return 'explorer', False
-        return 'icbmv2', False
+        return 'icbm', False
 
     def get_action(self, obs: dict) -> dict:
         if self.home_planet[0] is None:
@@ -695,6 +696,8 @@ class Agent:
                         self.defenders['even'] = ship_id
                     if not is_even_id:
                         self.defenders['odd'] = ship_id
+                if role == 'explorer':
+                    self.explorer = ship_id
                 self.constructed_ships += 1
             visited_ids[ship_id] = True
 
@@ -713,6 +716,8 @@ class Agent:
                     self.defenders['even'] = None
                 if self.defenders['odd'] == ship_id:
                     self.defenders['odd'] = None
+                if self.explorer == ship_id:
+                    self.explorer = None
                 del destroyed_ship
 
         # Merge actions and resolve conflicts
