@@ -564,10 +564,11 @@ class Ship:
                 filtered_actions.append(action)
 
         self.move_count += 1
-        #if self.role == 'explorer' and self.move_count == 250:
+        # todo: uncomment when pathfinding is fixed
+        #if self.role == 'explorer' and self.move_count > 100:
         #    self.role = 'icbmv2'
 
-        if self.role == 'backdoor' and self.move_count == 200:
+        if self.role == 'backdoor' and self.move_count >= 200:
             self.role = 'icbmv2'
         
         return actions
@@ -617,8 +618,12 @@ class Agent:
         if ship_id == 0:
             return 'icbm', False
         elif ship_id == 1:
-            return 'backdoor', False
+            return 'icbm', False
 
+        if self.defenders['even'] is None:
+            return 'defender', True
+
+        """
         if self.defenders['even'] is None:
             return 'defender', True
         elif self.defenders['odd'] is None:
@@ -627,8 +632,10 @@ class Agent:
         if not self.explorer_created:
             self.explorer_created = True
             return 'explorer', False
-
+        """
         #self.icbm_created = True
+        if self.constructed_ships % 3 == 0:
+            return 'explorer', False
         return 'icbm', False
 
     def get_action(self, obs: dict) -> dict:

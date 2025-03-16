@@ -43,14 +43,14 @@ def maximum_ships_we_can_build_with_safety_net(obs: dict) -> int:
 def is_our_home_planet_occupied(obs: dict, home_planet) -> bool:
     """Tuple - (x, y), default value"""
     if home_planet[0] is None:
-        #print("warning - home planet not detected")
+        print("warning - home planet not detected")
         return False 
 
     for planet in obs['planets_occupation']:
         if planet[0] == home_planet[0][0] and planet[1] == home_planet[0][1]:
             return planet[2] != home_planet[1]
 
-    #print("error - home planet not found")
+    print("error - home planet not found")
     return False
 
 class FieldType(IntEnum):
@@ -801,10 +801,11 @@ class Ship:
                 filtered_actions.append(action)
 
         self.move_count += 1
-        #if self.role == 'explorer' and self.move_count == 250:
+        # todo: uncomment when pathfinding is fixed
+        #if self.role == 'explorer' and self.move_count > 100:
         #    self.role = 'icbmv2'
 
-        if self.role == 'backdoor' and self.move_count == 200:
+        if self.role == 'backdoor' and self.move_count >= 200:
             self.role = 'icbmv2'
         
         return actions
@@ -854,8 +855,12 @@ class Agent:
         if ship_id == 0:
             return 'icbm', False
         elif ship_id == 1:
-            return 'backdoor', False
+            return 'icbm', False
 
+        if self.defenders['even'] is None:
+            return 'defender', True
+
+        """
         if self.defenders['even'] is None:
             return 'defender', True
         elif self.defenders['odd'] is None:
@@ -864,8 +869,10 @@ class Agent:
         if not self.explorer_created:
             self.explorer_created = True
             return 'explorer', False
-
+        """
         #self.icbm_created = True
+        if self.constructed_ships % 3 == 0:
+            return 'explorer', False
         return 'icbm', False
 
     def get_action(self, obs: dict) -> dict:
