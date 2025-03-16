@@ -528,14 +528,14 @@ class Agent:
         elif ship_id == 1:
             return 'icbm', False
         
+        if not self.explorer_created:
+            self.explorer_created = True
+            return 'explorer', False
+
         if self.defenders['even'] is None:
             return 'defender', True
         elif self.defenders['odd'] is None:
             return 'defender', False
-        
-        if not self.explorer_created:
-            self.explorer_created = True
-            return 'explorer', False
         
         return 'icbmv2', False
 
