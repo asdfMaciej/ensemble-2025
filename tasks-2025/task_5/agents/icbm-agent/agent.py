@@ -187,9 +187,10 @@ class ShipICBMv2(AbstractShip):
 
 
 class ShipDefender(AbstractShip):
-    def __init__(self, side: int):
+    def __init__(self, is_even_id: bool, side: int):
         self.side = side
         self.retreat = False
+        self.is_even_id = is_even_id
         self.home_planet = (None, None)
         # Keep track of each ship's move count.
         self.move_count = 0
@@ -288,7 +289,7 @@ class ShipDefender(AbstractShip):
             return [Move(ship_id=ship_id, direction=planet_direction, speed=2)]
 
         if self.is_player1:
-            if ship_id%2 == 0:
+            if self.is_even_id:
                 if self.ready_to_shoot:
                     result_action = Shoot(ship_id=ship_id, direction=1)
                 elif x<16:
@@ -309,7 +310,7 @@ class ShipDefender(AbstractShip):
                     result_action = Move(ship_id=ship_id, direction=0, speed=1)
                     self.ready_to_shoot = True
         else:
-            if ship_id%2 == 0:
+            if self.is_even_id:
                 if self.ready_to_shoot:
                     result_action = Shoot(ship_id=ship_id, direction=3)
                 elif x>82:
@@ -434,13 +435,13 @@ class ShipExplorer:
 class Ship:
     LAST_POSITIONS_MAX_COUNT = 20
 
-    def __init__(self, side: int, role: Optional[str] = None):
+    def __init__(self, is_even_id: bool, side: int, role: Optional[str] = None):
         self.role = role
         self.side = side
         self.icbm = ShipICBM(side=side)
         self.explorer = ShipExplorer(side=side)
         self.icbmV2 = ShipICBMv2(side=side)
-        self.defender = ShipDefender(side=side)
+        self.defender = ShipDefender(is_even_id=is_even_id, side=side)
 
         self.last_positions = []
 
@@ -516,30 +517,27 @@ class Agent:
         self.first_run = True
         self.constructed_ships = 0
         self.explorer_created = False 
-        self.defenders = {"a": None, "b": None}
+        self.defenders = {"even": None, "odd": None}
         """Tuple - (x, y), default value"""
     
 
-    def get_role(self, ship_id: int) -> str:
+    def get_role(self, ship_id: int):
         # TODO: Create defenders if 2 not present
         if ship_id == 0:
-            return 'icbmv2'
+            return 'icbmv2', False
         elif ship_id == 1:
-            return 'icbm'
+            return 'icbm', False
         
-        if self.defenders['a'] is None:
-            self.defenders['a'] = 'defender' # todo: fix
-            return 'defender'   
-        elif self.defenders['b'] is None:
-            self.defenders['b'] = 'defender'
-            return 'defender'
+        if self.defenders['even'] is None:
+            return 'defender', True
+        elif self.defenders['odd'] is None:
+            return 'defender', False
         
         if not self.explorer_created:
             self.explorer_created = True
-            return 'explorer'
+            return 'explorer', False
         
-        return 'icbmv2'
-        # TODO: set defender position 
+        return 'icbmv2', False
 
     def get_action(self, obs: dict) -> dict:
         if self.home_planet[0] is None:
@@ -562,7 +560,13 @@ class Agent:
         for n, ship_data in enumerate(obs['allied_ships']):
             ship_id = ship_data[0]
             if ship_id not in self.ships:
-                self.ships[ship_id] = Ship(side=self.side, role=self.get_role(self.constructed_ships))
+                role, is_even_id = self.get_role(self.constructed_ships)
+                self.ships[ship_id] = Ship(is_even_id=is_even_id, side=self.side, role=role)
+                if role == 'defender':
+                    if is_even_id:
+                        self.defenders['even'] = ship_id 
+                    if not is_even_id:
+                        self.defenders['odd'] = ship_id
                 self.constructed_ships += 1
             visited_ids[ship_id] = True
 
@@ -576,6 +580,11 @@ class Agent:
                 destroyed_ship = self.ships.pop(ship_id, None)
                 action = destroyed_ship.destructor(obs) if destroyed_ship else None
                 actions.extend(action)
+
+                if self.defenders['even'] == ship_id:
+                    self.defenders['even'] = None
+                if self.defenders['odd'] == ship_id:
+                    self.defenders['odd'] = None
                 del destroyed_ship
 
         # Merge actions and resolve conflicts
