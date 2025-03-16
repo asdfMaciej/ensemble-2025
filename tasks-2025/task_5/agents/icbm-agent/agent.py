@@ -599,6 +599,8 @@ class Agent:
         """ 
         :param side: Indicates whether the player is on left side (0) or right side (1)
         """
+        if side == 2:
+            side = 0
         self.side = side
         self.ships = {}
         self.home_planet = (None, None)
@@ -613,7 +615,7 @@ class Agent:
     def get_role(self, ship_id: int):
         # TODO: Create defenders if 2 not present
         if ship_id == 0:
-            return 'icbmv2', False
+            return 'icbm', False
         elif ship_id == 1:
             return 'backdoor', False
 
@@ -626,15 +628,8 @@ class Agent:
             self.explorer_created = True
             return 'explorer', False
 
-        if not self.explorer_created:
-            self.explorer_created = True
-            return 'explorer', False
-        
-        if self.icbm_created:
-            self.icbm_created = False
-            return 'icbmv2', False
-        self.icbm_created = True
-        return 'explorer', False
+        #self.icbm_created = True
+        return 'icbm', False
 
     def get_action(self, obs: dict) -> dict:
         if self.home_planet[0] is None:
