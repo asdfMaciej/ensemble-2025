@@ -564,8 +564,8 @@ class Ship:
                 filtered_actions.append(action)
 
         self.move_count += 1
-        if self.role == 'explorer' and self.move_count == 250:
-            self.role = 'icbmv2'
+        #if self.role == 'explorer' and self.move_count == 250:
+        #    self.role = 'icbmv2'
 
         if self.role == 'backdoor' and self.move_count == 200:
             self.role = 'icbmv2'

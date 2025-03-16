@@ -43,14 +43,14 @@ def maximum_ships_we_can_build_with_safety_net(obs: dict) -> int:
 def is_our_home_planet_occupied(obs: dict, home_planet) -> bool:
     """Tuple - (x, y), default value"""
     if home_planet[0] is None:
-        print("warning - home planet not detected")
+        #print("warning - home planet not detected")
         return False 
 
     for planet in obs['planets_occupation']:
         if planet[0] == home_planet[0][0] and planet[1] == home_planet[0][1]:
             return planet[2] != home_planet[1]
 
-    print("error - home planet not found")
+    #print("error - home planet not found")
     return False
 
 class FieldType(IntEnum):
@@ -801,8 +801,8 @@ class Ship:
                 filtered_actions.append(action)
 
         self.move_count += 1
-        if self.role == 'explorer' and self.move_count == 250:
-            self.role = 'icbmv2'
+        #if self.role == 'explorer' and self.move_count == 250:
+        #    self.role = 'icbmv2'
 
         if self.role == 'backdoor' and self.move_count == 200:
             self.role = 'icbmv2'
