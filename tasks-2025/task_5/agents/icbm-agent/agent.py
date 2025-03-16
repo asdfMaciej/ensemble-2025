@@ -406,7 +406,7 @@ class Agent:
 
         if is_our_home_planet_occupied(obs, self.home_planet):
             #print("Our home planet is occupied - want to crank out a ship!")
-            construction_max = maximum_ships_we_can_build_with_safety_net(obs)
+            construction_max = maximum_ships_we_can_build(obs)
         
         result = {
             "ships_actions": ship_actions,
