@@ -1,4 +1,5 @@
 from enum import IntEnum
+import random
 
 def constructor(self: object) -> None:
     self.foo = "bar"
@@ -106,29 +107,23 @@ def find_distance(point1: [int, int], point2: [int, int]) -> int:
     return abs(point1[0] - point2[0]) + abs(point1[1] - point2[1])
 
 
-def field_weight(field: FieldType) -> int:
+def field_weight(field: FieldType, distance) -> int:
     # Emulating switch-case using if/elif statements
     if field == FieldType.SPACE:
         return 0
     elif field == FieldType.ASTEROID:
-        return float('inf')
+        return 70
     elif field == FieldType.IONIZED_FIELD:
-        return -5
+        return -20
+    elif field.is_planet() and distance > 10:
+        return 1200
     elif not field.is_occupied() and field.is_planet():
-        return float('inf')
+        return 9000
     elif field == FieldType.UNDEFINED:
         return 0
     else:
         # Default case
         return 0
-
-
-def find_distance(point1: [int, int], point2: [int, int]) -> int:
-    return (abs(point1[0] - point2[0])**2 + abs(point1[1] - point2[1])**2) ** 0.5
-
-
-import random
-
 
 def search_move(start, end, map_data, visited, depth):
     """
@@ -171,10 +166,13 @@ def search_move(start, end, map_data, visited, depth):
                 immediate_cost = float('inf')
             else:
                 # Immediate cost: weighted Manhattan distance plus cell weight, minus jump bonus.
+                distance = find_distance(new_pos, end)
                 immediate_cost = (find_distance(new_pos, end) +
-                                  field_weight(FieldType.decode_tile(map_data[x][y])) - jump)
+                                  field_weight(FieldType.decode_tile(map_data[x][y]), distance) - jump)
             if immediate_cost == float('inf'):
                 continue
+            if new_pos == end:
+                return ([new_pos], -float('inf'))
 
             # Recurse: update visited (copy to avoid side effects) and simulate further moves.
             new_visited = set(visited)
@@ -230,10 +228,10 @@ def find_path(start: [int, int], end: [int, int], map_data: list[list[int]], vis
     best_seq, _ = search_move(start, end, map_data, visited, depth)
     if best_seq:
         # Return the immediate move (direction, jump) from the best sequence.
-        return best_seq[0]
+        return [visited,best_seq[0]]
     else:
         # No valid move found. You may choose to return None or a default value.
-        return (0, 0)
+        return [visited, (0, 0)]
 
 
 
