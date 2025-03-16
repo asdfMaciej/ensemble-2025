@@ -440,7 +440,7 @@ class Ship:
 
         # By default, the ship should be a ballistic missile
         if not self.role:
-            self.role = 'defender' # FIXME: fix me
+            self.role = 'icbmv2' # FIXME: fix me
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Action]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
