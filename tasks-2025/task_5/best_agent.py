@@ -43,14 +43,14 @@ def maximum_ships_we_can_build_with_safety_net(obs: dict) -> int:
 def is_our_home_planet_occupied(obs: dict, home_planet) -> bool:
     """Tuple - (x, y), default value"""
     if home_planet[0] is None:
-        #print("warning - home planet not detected")
+        print("warning - home planet not detected")
         return False 
 
     for planet in obs['planets_occupation']:
         if planet[0] == home_planet[0][0] and planet[1] == home_planet[0][1]:
             return planet[2] != home_planet[1]
 
-    #print("error - home planet not found")
+    print("error - home planet not found")
     return False
 
 class FieldType(IntEnum):
@@ -594,9 +594,11 @@ class ShipExplorer:
     DIRECTIONS = None
     seen_planet = None 
 
+
     def __init__(self, side: int):
         self.side = side
         self.move_direction = 0
+        self.move_count = 0
 
         if side == SIDE_LEFT: 
             self.DIRECTIONS = self.TOP_SIDE_DIRECTIONS
@@ -680,6 +682,7 @@ class Ship:
         self.icbmV2 = ShipICBMv2(side=side)
         self.defender = ShipDefender(is_even_id=is_even_id, side=side)
 
+        self.move_count = 0
         self.last_positions = []
 
         # By default, the ship should be a ballistic missile
@@ -721,6 +724,10 @@ class Ship:
             if action:
                 filtered_actions.append(action)
 
+        self.move_count += 1
+        if self.role == 'explorer' and self.move_count == 100:
+            self.role = 'icbm'
+        
         return actions
 
     def destructor(self, obs: dict) -> List[Action]:
@@ -756,14 +763,15 @@ class Agent:
         self.explorer_created = False 
         self.defenders = {"even": None, "odd": None}
         """Tuple - (x, y), default value"""
+        self.icbm_created = False
     
 
     def get_role(self, ship_id: int):
         # TODO: Create defenders if 2 not present
         if ship_id == 0:
-            return 'icbmv2', False
+            return 'explorer', False
         elif ship_id == 1:
-            return 'icbm', False
+            return 'icbmv2', False
         
         if not self.explorer_created:
             self.explorer_created = True
@@ -774,7 +782,15 @@ class Agent:
         elif self.defenders['odd'] is None:
             return 'defender', False
         
-        return 'icbmv2', False
+        if not self.explorer_created:
+            self.explorer_created = True
+            return 'explorer', False
+        
+        if self.icbm_created:
+            self.icbm_created = False
+            return 'icbmv2', False
+        self.icbm_created = True
+        return 'explorer', False
 
     def get_action(self, obs: dict) -> dict:
         if self.home_planet[0] is None:
