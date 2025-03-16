@@ -20,15 +20,19 @@ def _ship_firing(
     player_2_ships_facing: dict,
     effects: list,
     turn_on_music: bool,
-    volume: float
+    volume: float,
+    ship_1_actions: list,
+    ship_2_actions: list
 ):
     for command in actions["player_1"]["ships_actions"]:
         if command[1] == 1:
             ship_id, act, direction = command
 
             # If there is not such ship or the ship has an active firing cooldown
-            if ship_id not in player_1_ships.keys() or player_1_ships[ship_id][4] > 0:
+            if ship_id not in player_1_ships.keys() or player_1_ships[ship_id][4] > 0 or ship_id not in ship_1_actions:
                 continue
+
+            ship_1_actions.pop(ship_1_actions.index(ship_id))
 
             # Play shoot sound
             if turn_on_music:
@@ -56,8 +60,10 @@ def _ship_firing(
             ship_id, act, direction = command
 
             # If there is not such ship or the ship has an active firing cooldown
-            if ship_id not in player_2_ships.keys() or player_2_ships[ship_id][4] > 0:
+            if ship_id not in player_2_ships.keys() or player_2_ships[ship_id][4] > 0 or ship_id not in ship_2_actions:
                 continue
+
+            ship_2_actions.pop(ship_2_actions.index(ship_id))
 
             # Play shoot sound
             if turn_on_music:
@@ -116,13 +122,17 @@ def _ship_movement(
     player_2_ships_facing: dict,
     effects: list,
     turn_on_music: bool,
-    volume: float
+    volume: float,
+    ship_1_actions: list,
+    ship_2_actions: list
 ):
     for command in actions["player_1"]["ships_actions"]:
         if command[1] == 0:
             ship_id, act, direction, velocity = command
-            if ship_id not in player_1_ships.keys() or player_1_ships[ship_id][4] > 0:
+            if ship_id not in player_1_ships.keys() or player_1_ships[ship_id][4] > 0 or ship_id not in ship_1_actions:
                 continue
+
+            ship_1_actions.pop(ship_1_actions.index(ship_id))
             ship_x, ship_y = player_1_ships[ship_id][0], player_1_ships[ship_id][1]
 
             # Calculate max distance the ship can travel
@@ -161,8 +171,10 @@ def _ship_movement(
     for command in actions["player_2"]["ships_actions"]:
         if command[1] == 0:
             ship_id, act, direction, velocity = command
-            if ship_id not in player_2_ships.keys() or player_2_ships[ship_id][4] > 0:
+            if ship_id not in player_2_ships.keys() or player_2_ships[ship_id][4] > 0 or ship_id not in ship_2_actions:
                 continue
+
+            ship_2_actions.pop(ship_2_actions.index(ship_id))
             ship_x, ship_y = player_2_ships[ship_id][0], player_2_ships[ship_id][1]
 
             # Calculate max distance the ship can travel
@@ -207,6 +219,7 @@ def _ship_construction(
     player_2_ships_facing: dict,
     player_1_resources: np.ndarray,
     player_2_resources: np.ndarray,
+
 ):
     if actions["player_1"]["construction"] > 0:
         for i in range(actions["player_1"]["construction"]):
