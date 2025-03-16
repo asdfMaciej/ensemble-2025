@@ -112,10 +112,10 @@ def field_weight(field: FieldType, distance) -> int:
     if field == FieldType.SPACE:
         return 0
     elif field == FieldType.ASTEROID:
-        return 70
+        return 2
     elif field == FieldType.IONIZED_FIELD:
-        return -20
-    elif field.is_planet() and distance > 10:
+        return -10
+    elif not field.is_occupied() and field.is_planet() and field :
         return 1200
     elif not field.is_occupied() and field.is_planet():
         return 9000
@@ -134,9 +134,7 @@ def search_move(start, end, map_data, visited, depth):
 
     Base case: when depth is 0, no further moves are simulated.
     """
-    # Base case: no further simulation
     if depth == 0:
-        # Use the Manhattan distance as a heuristic cost.
         return ([], find_distance(start, end))
 
     num_rows = len(map_data)
@@ -146,9 +144,11 @@ def search_move(start, end, map_data, visited, depth):
 
     # Determine possible jump distances.
     possible_jumps = [1, 2]
-    # Check if current cell is ionized.
     if FieldType.decode_tile(map_data[start[0]][start[1]]) == FieldType.IONIZED_FIELD:
         possible_jumps.append(3)
+
+    # Define a factor to heavily penalize walking away from the target.
+    backward_penalty_factor = 100
 
     # For each jump, try all four directions.
     # Moves: 0: UP, 1: RIGHT, 2: DOWN, 3: LEFT.
@@ -161,16 +161,21 @@ def search_move(start, end, map_data, visited, depth):
         ]
         for (new_pos, direction) in moves:
             x, y = new_pos
-            # Out-of-bounds or already visited? Assign infinite cost.
+            # Out-of-bounds or already visited? Skip this move.
             if x < 0 or x >= num_rows or y < 0 or y >= num_cols or (x, y) in visited:
-                immediate_cost = float('inf')
-            else:
-                # Immediate cost: weighted Manhattan distance plus cell weight, minus jump bonus.
-                distance = find_distance(new_pos, end)
-                immediate_cost = (find_distance(new_pos, end) +
-                                  field_weight(FieldType.decode_tile(map_data[x][y]), distance) - jump)
-            if immediate_cost == float('inf'):
                 continue
+            else:
+                # Calculate the Manhattan distance from the new position and the current position.
+                new_distance = find_distance(new_pos, end)
+                current_distance = find_distance(start, end)
+                # Immediate cost: distance + field weight minus jump bonus.
+                immediate_cost = (new_distance +
+                                  field_weight(FieldType.decode_tile(map_data[x][y]), new_distance) - jump)
+                # If moving away from the target, add a penalty proportional to the difference.
+                if new_distance > current_distance:
+                    immediate_cost += (new_distance - current_distance) * backward_penalty_factor
+
+            # If the new position is the target, return immediately.
             if new_pos == end:
                 return ([new_pos], -float('inf'))
 
@@ -180,7 +185,7 @@ def search_move(start, end, map_data, visited, depth):
             subsequent_moves, subsequent_cost = search_move(new_pos, end, map_data, new_visited, depth - 1)
             total_cost = immediate_cost + subsequent_cost
 
-            # Update best sequence, using random tie-breaking if costs are equal.
+            # Update best sequence, with random tie-breaking if costs are equal.
             if total_cost < best_cost:
                 best_cost = total_cost
                 best_seq = [(direction, jump)] + subsequent_moves
@@ -189,9 +194,7 @@ def search_move(start, end, map_data, visited, depth):
                     best_seq = [(direction, jump)] + subsequent_moves
 
     if best_seq is None:
-        # No valid move found; return an empty sequence and use the heuristic cost.
         return ([], find_distance(start, end))
-
     return (best_seq, best_cost)
 
 
@@ -206,10 +209,6 @@ def find_path(start: [int, int], end: [int, int], map_data: list[list[int]], vis
       1: RIGHT -> (start[0], start[1] + jump)
       2: DOWN  -> (start[0] + jump, start[1])
       3: LEFT  -> (start[0], start[1] - jump)
-
-    The cost for a move is calculated as:
-         (find_distance(move, end) * 2 + field_weight(move's cell) - jump)
-    A move going out-of-bounds or to a previously visited cell gets an infinite cost.
 
     Args:
         start (list[int, int]): Current position.
@@ -227,12 +226,6 @@ def find_path(start: [int, int], end: [int, int], map_data: list[list[int]], vis
 
     best_seq, _ = search_move(start, end, map_data, visited, depth)
     if best_seq:
-        # Return the immediate move (direction, jump) from the best sequence.
-        return [visited,best_seq[0]]
+        return [visited, best_seq[0]]
     else:
-        # No valid move found. You may choose to return None or a default value.
         return [visited, (0, 0)]
-
-
-
-

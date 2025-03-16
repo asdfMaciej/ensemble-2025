@@ -151,31 +151,51 @@ class ShipICBM(AbstractShip):
         return []
     
 
+import random
+
 class ShipICBMv2(AbstractShip):
     def __init__(self, side: int):
         self.side = side
         self.target = []
         self.move_count = 0
         self.visited = set()
+        self.last_position = None
+        self.stuck_counter = 0
 
+    def set_target(self, target):
+        self.target = target
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
-        map = obs['map']
+        map_data = obs['map']
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
-
-        if not self.target:
-            if self.side == SIDE_LEFT:
-                self.target = [90, 90]
-            else:
-                self.target = [10, 10]
 
         self.move_count += 1
 
-        visited, move = find_path([x,y], self.target, map, self.visited)
+        # Check if the ship hasn't moved (stuck in same cell).
+        if self.last_position == (x, y):
+            self.stuck_counter += 1
+        else:
+            self.stuck_counter = 0
+        self.last_position = (x, y)
 
+        print(self.target)
+        if(len(self.target) == 0):
+            return []
+        # Use our path-finding function.
+        visited, move = find_path([x, y], self.target, map_data, self.visited)
         direction, step = move
 
-        self.visited=visited
+        # If we receive a default move (0, 0) or have been stuck for more than 3 moves,
+        # then reset the visited set and choose a random move to try to break the blockade.
+        if (direction, step) == (0, 0) or self.stuck_counter > 3:
+            self.visited = set()  # Reset visited to allow re-exploration.
+            direction = random.choice([0, 1, 2, 3])
+            step = 1
+            self.stuck_counter = 0
+
+        # Update the visited set.
+        self.visited = visited
+
         return [Move(ship_id=ship_id, direction=direction, speed=step)]
 
     def destructor(self, obs: dict) -> List[Action]:
@@ -663,7 +683,7 @@ class Agent:
                 self.ships[ship_id] = Ship(is_even_id=is_even_id, side=self.side, role=role)
                 if role == 'defender':
                     if is_even_id:
-                        self.defenders['even'] = ship_id 
+                        self.defenders['even'] = ship_id
                     if not is_even_id:
                         self.defenders['odd'] = ship_id
                 self.constructed_ships += 1
@@ -697,7 +717,7 @@ class Agent:
 
             else:
                 pass  # ship decided to do nothing
-        
+
         """
         # If we don't have a ship, we must build one 
         if ships_count == 0:
@@ -715,7 +735,7 @@ class Agent:
         construction_max = max(1, construction_max)
         # ALWAYS BUILD SHIPS!!!!!!!!
         # MORE SHIPS!
-        
+
         result = {
             "ships_actions": ship_actions,
             "construction": construction_max
