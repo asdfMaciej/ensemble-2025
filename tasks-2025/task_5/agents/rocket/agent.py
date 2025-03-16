@@ -384,11 +384,11 @@ class ShipExplorer:
 
                     # TODO: determine if the found planet is close by
                     self.seen_planet = (planet_x, planet_y)
-                    #rint(f"our x: {x}, our y: {y}, we can crash into planet: {planet_is_free} at position {planet_x}, {planet_y}")
+                    print(f"our x: {x}, our y: {y}, we can crash into planet: {planet_is_free} at position {planet_x}, {planet_y}")
                     #input("")
                     
         if self.seen_planet is not None:
-            #print(f"Our ship is travellign from {x}, {y} to {self.seen_planet}")
+            print(f"Our ship is travellign from {x}, {y} to {self.seen_planet}")
 
             planet_x, planet_y = self.seen_planet
             dx = planet_x - x
@@ -418,7 +418,7 @@ class ShipExplorer:
             self.move_direction = (self.move_direction + 1) % 4
 
         self.ship_travelled_in_current_direction += 1
-        #print(self.ship_travelled_in_current_direction)
+        print(self.ship_travelled_in_current_direction)
 
         return [Move(ship_id=ship_id, direction=self.DIRECTIONS[self.move_direction], speed=2)]
 
@@ -440,7 +440,7 @@ class Ship:
 
         # By default, the ship should be a ballistic missile
         if not self.role:
-            self.role = 'defender' # FIXME: fix me
+            self.role = 'icbmv2' # FIXME: fix me
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Action]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
@@ -457,9 +457,9 @@ class Ship:
 
             if abs(max_x - min_x) <= 2 and abs(max_y - min_y) <= 2:
                 # Ship is stuck
-                #print(f"Our ship is stuck! x diff {abs(max_x - min_x)}, y diff {abs(max_y - min_y)}")
+                print(f"Our ship is stuck! x diff {abs(max_x - min_x)}, y diff {abs(max_y - min_y)}")
                 if self.role == 'explorer':
-                    self.role = 'icbmv2'
+                    self.role = 'icbmv2'     
 
         ship = self._get_current_ship()
         actions = ship.get_actions(obs, ship_data)
@@ -566,12 +566,12 @@ class Agent:
 
         # Let's always build ships if we have safety net
         if can_build_ship_with_safety_net(obs):
-            #print("cranking out a ship just because we can")
+            print("cranking out a ship just because we can")
             construction_max = maximum_ships_we_can_build_with_safety_net(obs)
 
         if is_our_home_planet_occupied(obs, self.home_planet):
-            #print("Our home planet is occupied - want to crank out a ship!")
-            construction_max = maximum_ships_we_can_build(obs)
+            print("Our home planet is occupied - want to crank out a ship!")
+            construction_max = maximum_ships_we_can_build_with_safety_net(obs)
         
         result = {
             "ships_actions": ship_actions,
