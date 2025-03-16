@@ -156,6 +156,8 @@ class ShipICBMv2(AbstractShip):
         self.side = side
         self.target = []
         self.move_count = 0
+        self.visited = set()
+
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
         map = obs['map']
@@ -169,7 +171,11 @@ class ShipICBMv2(AbstractShip):
 
         self.move_count += 1
 
-        direction, step = find_path([x,y], self.target, map)
+        visited, move = find_path([x,y], self.target, map, self.visited)
+
+        direction, step = move
+
+        self.visited=visited
         return [Move(ship_id=ship_id, direction=direction, speed=step)]
 
     def destructor(self, obs: dict) -> List[Action]:
