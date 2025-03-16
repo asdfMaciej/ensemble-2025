@@ -509,7 +509,31 @@ class Agent:
         self.home_planet = (None, None)
         self.first_run = True
         self.constructed_ships = 0
+        self.explorer_created = False 
+        self.defenders = {"a": None, "b": None}
         """Tuple - (x, y), default value"""
+    
+
+    def get_role(self, ship_id: int) -> str:
+        # TODO: Create defenders if 2 not present
+        if ship_id == 0:
+            return 'icbmv2'
+        elif ship_id == 1:
+            return 'icbm'
+        
+        if self.defenders['a'] is None:
+            self.defenders['a'] = 'defender' # todo: fix
+            return 'defender'   
+        elif self.defenders['b'] is None:
+            self.defenders['b'] = 'defender'
+            return 'defender'
+        
+        if not self.explorer_created:
+            self.explorer_created = True
+            return 'explorer'
+        
+        return 'icbmv2'
+        # TODO: set defender position 
 
     def get_action(self, obs: dict) -> dict:
         if self.home_planet[0] is None:
@@ -532,8 +556,8 @@ class Agent:
         for n, ship_data in enumerate(obs['allied_ships']):
             ship_id = ship_data[0]
             if ship_id not in self.ships:
+                self.ships[ship_id] = Ship(side=self.side, role=self.get_role(self.constructed_ships))
                 self.constructed_ships += 1
-                self.ships[ship_id] = Ship(side=self.side)
             visited_ids[ship_id] = True
 
             ship = self.ships[ship_id]
@@ -559,19 +583,24 @@ class Agent:
 
             else:
                 pass  # ship decided to do nothing
-
+        
+        """
         # If we don't have a ship, we must build one 
         if ships_count == 0:
             construction_max = max(1, construction_max)
 
         # Let's always build ships if we have safety net
-        if can_build_ship_with_safety_net(obs):
+        if can_build_ship(obs):
             #print("cranking out a ship just because we can")
-            construction_max = maximum_ships_we_can_build_with_safety_net(obs)
+            construction_max = maximum_ships_we_can_build(obs)
 
         if is_our_home_planet_occupied(obs, self.home_planet):
             #print("Our home planet is occupied - want to crank out a ship!")
             construction_max = maximum_ships_we_can_build(obs)
+        """
+        construction_max = max(1, construction_max)
+        # ALWAYS BUILD SHIPS!!!!!!!!
+        # MORE SHIPS!
         
         result = {
             "ships_actions": ship_actions,
