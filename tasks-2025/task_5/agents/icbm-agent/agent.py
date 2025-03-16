@@ -187,9 +187,10 @@ class ShipICBMv2(AbstractShip):
 
 
 class ShipDefender(AbstractShip):
-    def __init__(self, side: int):
+    def __init__(self, is_even_id: bool, side: int):
         self.side = side
         self.retreat = False
+        self.is_even_id = is_even_id
         self.home_planet = (None, None)
         # Keep track of each ship's move count.
         self.move_count = 0
@@ -288,7 +289,7 @@ class ShipDefender(AbstractShip):
             return [Move(ship_id=ship_id, direction=planet_direction, speed=2)]
 
         if self.is_player1:
-            if ship_id%2 == 0:
+            if self.is_even_id:
                 if self.ready_to_shoot:
                     result_action = Shoot(ship_id=ship_id, direction=1)
                 elif x<16:
@@ -309,7 +310,7 @@ class ShipDefender(AbstractShip):
                     result_action = Move(ship_id=ship_id, direction=0, speed=1)
                     self.ready_to_shoot = True
         else:
-            if ship_id%2 == 0:
+            if self.is_even_id:
                 if self.ready_to_shoot:
                     result_action = Shoot(ship_id=ship_id, direction=3)
                 elif x>82:
@@ -434,13 +435,13 @@ class ShipExplorer:
 class Ship:
     LAST_POSITIONS_MAX_COUNT = 20
 
-    def __init__(self, side: int, role: Optional[str] = None):
+    def __init__(self, is_even_id: bool, side: int, role: Optional[str] = None):
         self.role = role
         self.side = side
         self.icbm = ShipICBM(side=side)
         self.explorer = ShipExplorer(side=side)
         self.icbmV2 = ShipICBMv2(side=side)
-        self.defender = ShipDefender(side=side)
+        self.defender = ShipDefender(is_even_id=is_even_id, side=side)
 
         self.last_positions = []
 
@@ -515,7 +516,28 @@ class Agent:
         self.home_planet = (None, None)
         self.first_run = True
         self.constructed_ships = 0
+        self.explorer_created = False 
+        self.defenders = {"even": None, "odd": None}
         """Tuple - (x, y), default value"""
+    
+
+    def get_role(self, ship_id: int):
+        # TODO: Create defenders if 2 not present
+        if ship_id == 0:
+            return 'icbmv2', False
+        elif ship_id == 1:
+            return 'icbm', False
+        
+        if self.defenders['even'] is None:
+            return 'defender', True
+        elif self.defenders['odd'] is None:
+            return 'defender', False
+        
+        if not self.explorer_created:
+            self.explorer_created = True
+            return 'explorer', False
+        
+        return 'icbmv2', False
 
     def get_action(self, obs: dict) -> dict:
         if self.home_planet[0] is None:
@@ -538,8 +560,14 @@ class Agent:
         for n, ship_data in enumerate(obs['allied_ships']):
             ship_id = ship_data[0]
             if ship_id not in self.ships:
+                role, is_even_id = self.get_role(self.constructed_ships)
+                self.ships[ship_id] = Ship(is_even_id=is_even_id, side=self.side, role=role)
+                if role == 'defender':
+                    if is_even_id:
+                        self.defenders['even'] = ship_id 
+                    if not is_even_id:
+                        self.defenders['odd'] = ship_id
                 self.constructed_ships += 1
-                self.ships[ship_id] = Ship(side=self.side)
             visited_ids[ship_id] = True
 
             ship = self.ships[ship_id]
@@ -552,6 +580,11 @@ class Agent:
                 destroyed_ship = self.ships.pop(ship_id, None)
                 action = destroyed_ship.destructor(obs) if destroyed_ship else None
                 actions.extend(action)
+
+                if self.defenders['even'] == ship_id:
+                    self.defenders['even'] = None
+                if self.defenders['odd'] == ship_id:
+                    self.defenders['odd'] = None
                 del destroyed_ship
 
         # Merge actions and resolve conflicts
@@ -565,19 +598,24 @@ class Agent:
 
             else:
                 pass  # ship decided to do nothing
-
+        
+        """
         # If we don't have a ship, we must build one 
         if ships_count == 0:
             construction_max = max(1, construction_max)
 
         # Let's always build ships if we have safety net
-        if can_build_ship_with_safety_net(obs):
+        if can_build_ship(obs):
             #print("cranking out a ship just because we can")
-            construction_max = maximum_ships_we_can_build_with_safety_net(obs)
+            construction_max = maximum_ships_we_can_build(obs)
 
         if is_our_home_planet_occupied(obs, self.home_planet):
             #print("Our home planet is occupied - want to crank out a ship!")
             construction_max = maximum_ships_we_can_build(obs)
+        """
+        construction_max = max(1, construction_max)
+        # ALWAYS BUILD SHIPS!!!!!!!!
+        # MORE SHIPS!
         
         result = {
             "ships_actions": ship_actions,
