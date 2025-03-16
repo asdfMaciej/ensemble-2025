@@ -548,8 +548,17 @@ class Ship:
         if not self.role:
             self.role = 'defender' # FIXME: fix me
 
+    start_pos = None
+
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Action]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+        if self.start_pos is None:
+            targets = [[10, 10], [90, 90]]
+            distances = [find_distance(distance, [x,y]) for distance in targets]
+            self.start_pos = targets[distances.index(min(distances))]
+
+            self.icbmV2.target =  targets[distances.index(max(distances))]
+
 
         if len(self.last_positions) >= self.LAST_POSITIONS_MAX_COUNT:
             self.last_positions.pop(0)
@@ -656,7 +665,7 @@ class Agent:
         #self.icbm_created = True
         if self.constructed_ships % 3 == 0:
             return 'explorer', False
-        return 'icbm', False
+        return 'icbmv2', False
 
     def get_action(self, obs: dict) -> dict:
         if self.home_planet[0] is None:
