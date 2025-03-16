@@ -434,6 +434,81 @@ class ShipExplorer:
     def destructor(self, obs: dict) -> List[Action]:
         return []
 
+
+class ShipBackdoor:
+    # go right, down, left, down
+    TOP_SIDE_DIRECTIONS = (2, 1, 0)
+    BOTTOM_SIDE_DIRECTIONS = (0, 3, 2)
+
+    DIRECTIONS = None
+    seen_planet = None
+
+    def __init__(self, side: int):
+        self.side = side
+        self.move_direction = 0
+        self.move_count = 0
+        self.enemy_planet = (None, None)
+
+        if side == SIDE_LEFT:
+            self.DIRECTIONS = self.TOP_SIDE_DIRECTIONS
+        else:
+            self.DIRECTIONS = self.BOTTOM_SIDE_DIRECTIONS
+
+    def get_actions(self, obs: dict, ship_data: Tuple) -> list[Move]:
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+
+        if self.enemy_planet[0] is None:
+            if self.side == SIDE_LEFT:
+                self.enemy_planet = (90, 90)
+            else:
+                self.enemy_planet = (9, 9)
+
+        ### -----ATTACKING PLANET-----
+        if self.move_count >= 1500:
+            planet_x, planet_y = self.enemy_planet
+            dx = planet_x - x
+            dy = planet_y - y
+            planet_direction = None
+            # Determine the direction to move towards the planet
+            if abs(dx) > abs(dy):
+                # Move horizontally
+                if dx > 0:
+                    planet_direction = 0  # Right
+                else:
+                    planet_direction = 2  # Left
+            else:
+                # Move vertically
+                if dy > 0:
+                    planet_direction = 1  # Down
+                else:
+                    planet_direction = 3  # Up
+            return [Move(ship_id=ship_id, direction=planet_direction, speed=2)]
+        ### -----ATTACKING PLANET-----
+
+
+        next_move = None
+        if self.side == SIDE_LEFT:
+            if x != 0 and y == 9:
+                next_move= Move(ship_id=ship_id, direction=2, speed=2)
+            elif x ==0 and y != 99:
+             next_move=Move(ship_id=ship_id, direction=1, speed=2)
+            elif y == 99:
+                next_move=Move(ship_id=ship_id, direction=0, speed=2)
+        else:
+            if x != 99 and y == 90:
+                next_move=Move(ship_id=ship_id, direction=0, speed=2)
+            elif x == 99 and y != 0:
+                next_move=Move(ship_id=ship_id, direction=3, speed=2)
+            elif y == 0:
+                next_move=Move(ship_id=ship_id, direction=2, speed=2)
+
+        self.move_count += 1
+
+        return [next_move]
+
+    def destructor(self, obs: dict) -> List[Action]:
+        return []
+
 class Ship:
     LAST_POSITIONS_MAX_COUNT = 20
 
@@ -444,6 +519,7 @@ class Ship:
         self.explorer = ShipExplorer(side=side)
         self.icbmV2 = ShipICBMv2(side=side)
         self.defender = ShipDefender(is_even_id=is_even_id, side=side)
+        self.backdoor = ShipBackdoor(side=side)
 
         self.move_count = 0
         self.last_positions = []
@@ -488,7 +564,10 @@ class Ship:
                 filtered_actions.append(action)
 
         self.move_count += 1
-        if self.role == 'explorer' and self.move_count == 100:
+        if self.role == 'explorer' and self.move_count == 250:
+            self.role = 'icbmv2'
+
+        if self.role == 'backdoor' and self.move_count == 200:
             self.role = 'icbmv2'
         
         return actions
@@ -508,6 +587,8 @@ class Ship:
             return self.icbmV2
         elif self.role == 'defender':
             return self.defender
+        elif self.role == 'backdoor':
+            return self.backdoor
         else:
             raise ValueError(f"Invalid role: {self.role}")
 
@@ -532,19 +613,19 @@ class Agent:
     def get_role(self, ship_id: int):
         # TODO: Create defenders if 2 not present
         if ship_id == 0:
-            return 'explorer', False
-        elif ship_id == 1:
             return 'icbmv2', False
-        
-        if not self.explorer_created:
-            self.explorer_created = True
-            return 'explorer', False
+        elif ship_id == 1:
+            return 'backdoor', False
 
         if self.defenders['even'] is None:
             return 'defender', True
         elif self.defenders['odd'] is None:
             return 'defender', False
         
+        if not self.explorer_created:
+            self.explorer_created = True
+            return 'explorer', False
+
         if not self.explorer_created:
             self.explorer_created = True
             return 'explorer', False
