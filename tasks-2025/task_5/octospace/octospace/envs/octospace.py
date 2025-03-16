@@ -86,7 +86,7 @@ class OctoSpaceEnv(gym.Env):
         self.volume = volume
         self.seed = seed
         self.render_mode = render_mode
-        self.debug = False
+        self.debug = True
 
         self.observation_space = spaces.Dict({
             player: spaces.Dict({
