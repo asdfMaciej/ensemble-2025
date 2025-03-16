@@ -51,7 +51,7 @@ class Construction(Action):
     0-10
     """
 
-class ShipICBM: 
+class ShipDefender: 
     def __init__(self, side: int):
         self.side = side 
 
