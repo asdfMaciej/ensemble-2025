@@ -1,14 +1,18 @@
-from task_5.utils.utils import * # DO NOT TOUCH THIS FIRST LINE!!!
-import random
+from task_5.utils.utils import *  # DO NOT TOUCH THIS FIRST LINE!!!
+
+from abc import ABC
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
-from abc import ABC
+
+
 
 SIDE_LEFT = 0
 SIDE_RIGHT = 1
 
+
 class Action(ABC):
-    pass 
+    pass
+
 
 class AbstractShip(ABC):
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
@@ -16,26 +20,28 @@ class AbstractShip(ABC):
     pass
 
 @dataclass
-class Shoot(Action): 
+class Shoot(Action):
     """
     DON'T SHOOT! WE'RE A PEACEFUL TEAM!
     """
 
-    ship_id: int 
-    direction: int 
+    ship_id: int
+    direction: int
     """ 
     0 - right
     1 - down
     2 - left 
     3 - up
     """
+
     def to_game_format(self) -> object:
         return [self.ship_id, 1, self.direction]
 
+
 @dataclass
 class Move(Action):
-    ship_id: int 
-    direction: int 
+    ship_id: int
+    direction: int
     """ 
     0 - right
     1 - down
@@ -43,22 +49,23 @@ class Move(Action):
     3 - up
     """
 
-    speed: int 
-    """1-3""" 
+    speed: int
+    """1-3"""
 
-    def to_game_format(self) -> object: 
+    def to_game_format(self) -> object:
         return [self.ship_id, 0, self.direction, self.speed]
+
 
 @dataclass
 class Construction(Action):
-    ships_count: int 
+    ships_count: int
     """
     0-10
     """
 
 class ShipICBM(AbstractShip):
     def __init__(self, side: int):
-        self.side = side 
+        self.side = side
 
         # Keep track of each ship's move count.
         self.move_count = 0
@@ -71,12 +78,12 @@ class ShipICBM(AbstractShip):
             {
                 "moves": [0, 1],
                 "threshold1": 90,  # e.g., if x < 10: use one move
-                "threshold2": 85   # if 10 <= x < 15: use another
+                "threshold2": 85  # if 10 <= x < 15: use another
             },
             {
                 "moves": [2, 3],
                 "threshold1": 10,  # for bottom players, if x > 90: use one move
-                "threshold2": 15   # if 85 < x <= 90: use another
+                "threshold2": 15  # if 85 < x <= 90: use another
             }
         ]
         # Default to top-player data (will be updated on first turn).
@@ -86,7 +93,7 @@ class ShipICBM(AbstractShip):
 
     def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
-    
+
         ships_actions = []
 
         # On the first turn, determine starting side.
@@ -115,7 +122,7 @@ class ShipICBM(AbstractShip):
                 result_action = Move(ship_id=ship_id, direction=move_code, speed=2)
             else:  # x >= threshold2
                 result_action = Move(ship_id=ship_id, direction=1, speed=2)
-                increase_move_count = False 
+                increase_move_count = False
         else:
             # For bottom players: higher x values.
             if x > self.current_data_points['threshold1']:
@@ -128,7 +135,7 @@ class ShipICBM(AbstractShip):
             else:  # x <= threshold2
                 ships_actions.append([ship_id, 0, 3, 2])
                 result_action = Move(ship_id=ship_id, direction=3, speed=2)
-                increase_move_count = False 
+                increase_move_count = False
 
         if increase_move_count:
             self.move_count += 1
@@ -153,54 +160,149 @@ class ShipICBMv2(AbstractShip):
         ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
 
         if not self.target:
-            self.target = [70, 50]
-
-        if(self.move_count == 200):
-            self.target = [90, 90]
+            if self.side == SIDE_LEFT:
+                self.target = [90, 90]
+            else:
+                self.target = [10, 10]
 
         self.move_count += 1
 
         direction, step = find_path([x,y], self.target, map)
         return [Move(ship_id=ship_id, direction=direction, speed=step)]
 
-
-        pass
     def destructor(self, obs: dict) -> List[Action]:
         # If our ICBM has been destroyed, and we have >= 200 gold,
         # we can automatically build a new ship.
         if can_build_ship(obs):
             return [Construction(ships_count=1)]
-class ShipExplorer:
-    def __init__(self, side: int):
-        self.side = side 
-
-    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Optional[Action]]:
-        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
-
         return []
+
+class ShipExplorer:
+    # go right, down, left, down
+    TOP_SIDE_DIRECTIONS = (0, 1, 2, 0)
+    BOTTOM_SIDE_DIRECTIONS = (2, 3, 0, 3)
+    TRAVEL_DISTANCE_UNTIL_DIRECTION_CHANGE = (85, 10, 85, 10)
+
+    ship_travelled_in_current_direction = 0
+
+    DIRECTIONS = None
+    seen_planet = None 
+
+    def __init__(self, side: int):
+        self.side = side
+        self.move_direction = 0
+
+        if side == SIDE_LEFT: 
+            self.DIRECTIONS = self.TOP_SIDE_DIRECTIONS
+        else:
+            self.DIRECTIONS = self.BOTTOM_SIDE_DIRECTIONS
+
+    def get_actions(self, obs: dict, ship_data: Tuple) -> list[Move]:
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+        
+        if self.seen_planet is None:
+            for planet in obs['planets_occupation']:
+                # !!!!!!!!!!!!!! WARNING !!!!!!!!!!!!!!!!!!!!!!!
+                # Y SWAPPED WITH X
+                # BECAUSE PLANETS X, Y ARE SWAPPED
+                # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111
+
+                planet_y, planet_x, occupation_progress = planet
+                dx = planet_y - y
+                dy = planet_x - x
+                planet_is_free = occupation_progress == -1
+                
+                # TODO: fix me xD
+
+                manhattan_distance = abs(dx) + abs(dy)
+                if planet_is_free: 
+                    #if manhattan_distance > 20:
+                    #    print(f"Planet {planet_x}, {planet_y} is too far away ({manhattan_distance}) from our ship {x}, {y}")
+                    #    input("")
+
+                    # TODO: determine if the found planet is close by
+                    self.seen_planet = (planet_x, planet_y)
+                    print(f"our x: {x}, our y: {y}, we can crash into planet: {planet_is_free} at position {planet_x}, {planet_y}")
+                    #input("")
+                    
+        if self.seen_planet is not None:
+            print(f"Our ship is travellign from {x}, {y} to {self.seen_planet}")
+
+            planet_x, planet_y = self.seen_planet
+            dx = planet_x - x
+            dy = planet_y - y
+
+            planet_direction = None
+            # Determine the direction to move towards the planet
+            if abs(dx) > abs(dy):
+                # Move horizontally
+                if dx > 0:
+                    planet_direction = 0  # Right
+                else:
+                    planet_direction = 2  # Left
+            else:
+                # Move vertically
+                if dy > 0:
+                    planet_direction = 1  # Down
+                else:
+                    planet_direction = 3  # Up
+            
+            
+            return [Move(ship_id=ship_id, direction=planet_direction, speed=2)]
+
+        switch_side = self.ship_travelled_in_current_direction >= self.TRAVEL_DISTANCE_UNTIL_DIRECTION_CHANGE[self.move_direction]
+        if switch_side:
+            self.ship_travelled_in_current_direction = 0
+            self.move_direction = (self.move_direction + 1) % 4
+
+        self.ship_travelled_in_current_direction += 1
+        print(self.ship_travelled_in_current_direction)
+
+        return [Move(ship_id=ship_id, direction=self.DIRECTIONS[self.move_direction], speed=2)]
 
     def destructor(self, obs: dict) -> List[Action]:
         return []
 
+class Ship:
+    LAST_POSITIONS_MAX_COUNT = 20
 
-class Ship: 
     def __init__(self, side: int, role: Optional[str] = None):
         self.role = role
-        self.side = side 
+        self.side = side
         self.icbm = ShipICBM(side=side)
         self.explorer = ShipExplorer(side=side)
         self.icbmV2 = ShipICBMv2(side=side)
 
+        self.last_positions = []
+
         # By default, the ship should be a ballistic missile
         if not self.role:
-            self.role = 'icbmv2'
-    
-    def get_actions(self, obs: dict, ship_data: Optional[Tuple]) -> List[Action]:
+            self.role = 'icbmv2' # TODO: fix me
+
+    def get_actions(self, obs: dict, ship_data: Tuple) -> List[Action]:
+        ship_id, x, y, hp, fire_cooldown, move_cooldown = ship_data
+
+        if len(self.last_positions) >= self.LAST_POSITIONS_MAX_COUNT:
+            self.last_positions.pop(0)
+
+        self.last_positions.append((x, y))
+
+        if len(self.last_positions) >= self.LAST_POSITIONS_MAX_COUNT:
+            # Check if the ship is stuck
+            min_x, max_x = min(self.last_positions, key=lambda x: x[0])[0], max(self.last_positions, key=lambda x: x[0])[0]
+            min_y, max_y = min(self.last_positions, key=lambda x: x[1])[1], max(self.last_positions, key=lambda x: x[1])[1]
+
+            if abs(max_x - min_x) <= 2 and abs(max_y - min_y) <= 2:
+                # Ship is stuck
+                print(f"Our ship is stuck! x diff {abs(max_x - min_x)}, y diff {abs(max_y - min_y)}")
+                if self.role == 'explorer':
+                    self.role = 'icbmv2'     
+
         ship = self._get_current_ship()
         actions = ship.get_actions(obs, ship_data)
-        
+
         # Ensure that ships don't return invalid data
-        move_or_shoot_found = False 
+        move_or_shoot_found = False
         filtered_actions = []
         for action in actions:
             if action and isinstance(action, (Move, Shoot)):
@@ -219,7 +321,7 @@ class Ship:
         actions = ship.destructor(obs)
         # TODO: validate actions such as in get_actions if necessary
         return actions
-    
+
     def _get_current_ship(self):
         if self.role == 'icbm':
             return self.icbm
@@ -230,7 +332,9 @@ class Ship:
         else:
             raise ValueError(f"Invalid role: {self.role}")
 
+
 class Agent:
+    side = None 
     def __init__(self, side: int):
         """ 
         :param side: Indicates whether the player is on left side (0) or right side (1)
@@ -284,13 +388,13 @@ class Agent:
         for action in actions:
             if isinstance(action, Construction):
                 construction_max = max(construction_max, action.ships_count)
-            
+
             elif isinstance(action, Action):
                 ship_actions.append(action.to_game_format())
 
             else:
-                pass # ship decided to do nothing
-        
+                pass  # ship decided to do nothing
+
         # If we don't have a ship, we must build one 
         if ships_count == 0:
             construction_max = max(1, construction_max)
@@ -310,7 +414,6 @@ class Agent:
         }
 
         return result
-    
 
     def load(self, abs_path: str):
         """
