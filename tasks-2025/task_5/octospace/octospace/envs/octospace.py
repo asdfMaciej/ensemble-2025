@@ -65,7 +65,7 @@ class OctoSpaceEnv(gym.Env):
                  player_1_id: int,
                  player_2_id: int,
                  render_mode: Optional[str] = None,
-                 max_steps: int = 1000,
+                 max_steps: int = 2000,
                  turn_on_music: bool = False,
                  volume: float = 0.25,
                  seed: Optional[int] = None
@@ -86,7 +86,7 @@ class OctoSpaceEnv(gym.Env):
         self.volume = volume
         self.seed = seed
         self.render_mode = render_mode
-        self.debug = True
+        self.debug = False
 
         self.observation_space = spaces.Dict({
             player: spaces.Dict({
@@ -256,19 +256,19 @@ class OctoSpaceEnv(gym.Env):
             "player_1": {
                 "map": player_1_map,
                 "allied_ships": [[ship_id] + ship for ship_id, ship in self._player_1_ships.items()],
-                "enemy_ships": [[ship_id] + ship for ship_id, ship in self._player_2_ships.items() if self._player_1_visibility_mask[ship[0], ship[1]]],
+                "enemy_ships": [[ship_id] + ship for ship_id, ship in self._player_2_ships.items() if self._player_1_visibility_mask[ship[1], ship[0]]],
                 "planets_occupation": [(planet_x, planet_y, occupation) for (planet_x, planet_y), occupation in
                                        zip(self._planets_centers, self._planets_occupation_progress) if
-                                       self._player_1_visibility_mask[planet_y, planet_x]],
+                                       self._player_1_visibility_mask[planet_x, planet_y]],
                 "resources": self._player_1_resources
             },
             "player_2": {
                 "map": player_2_map,
                 "allied_ships": [[ship_id] + ship for ship_id, ship in self._player_2_ships.items()],
-                "enemy_ships": [[ship_id] + ship for ship_id, ship in self._player_1_ships.items() if self._player_2_visibility_mask[ship[0], ship[1]]],
+                "enemy_ships": [[ship_id] + ship for ship_id, ship in self._player_1_ships.items() if self._player_2_visibility_mask[ship[1], ship[0]]],
                 "planets_occupation": [(planet_x, planet_y, occupation) for (planet_x, planet_y), occupation in
                                        zip(self._planets_centers, self._planets_occupation_progress) if
-                                       self._player_2_visibility_mask[planet_y, planet_x]],
+                                       self._player_2_visibility_mask[planet_x, planet_y]],
                 "resources": self._player_2_resources
             }
         }
@@ -353,16 +353,20 @@ class OctoSpaceEnv(gym.Env):
         # Decrease cooldowns
         _decrease_cooldowns(player_1_ships=self._player_1_ships, player_2_ships=self._player_2_ships)
 
+        ship_1_actions = [ship_id for ship_id in self._player_1_ships.keys()]
+        ship_2_actions = [ship_id for ship_id in self._player_2_ships.keys()]
+
         # Ships firing
         _ship_firing(actions=actions, player_1_ships=self._player_1_ships, player_2_ships=self._player_2_ships,
                      player_1_ships_facing=self._player_1_ships_facing, player_2_ships_facing=self._player_2_ships_facing,
-                     effects=self.effects, turn_on_music=self._turn_on_music, volume=self.volume)
+                     effects=self.effects, turn_on_music=self._turn_on_music, volume=self.volume, ship_1_actions=ship_1_actions,
+                     ship_2_actions=ship_2_actions)
 
         # Ship movement
         _ship_movement(game_map=self._map, actions=actions, player_1_ships=self._player_1_ships,
                        player_2_ships=self._player_2_ships, player_1_ships_facing=self._player_1_ships_facing,
                        player_2_ships_facing=self._player_2_ships_facing, effects=self.effects, turn_on_music=self._turn_on_music,
-                       volume=self.volume)
+                       volume=self.volume, ship_1_actions=ship_1_actions, ship_2_actions=ship_2_actions)
 
         # Construction
         _ship_construction(actions=actions, player_1_ships=self._player_1_ships, player_2_ships=self._player_2_ships,

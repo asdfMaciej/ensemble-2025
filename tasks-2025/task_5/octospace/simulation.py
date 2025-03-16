@@ -15,7 +15,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def setup_agent(agent_class: Agent.__class__, player_id: int, side: int):
     agent = agent_class(side=side)
-    agent.load(os.path.abspath(f"agents/{player_id}/"))
+    agent.load(os.path.abspath(f"task_5/octospace/agents/{player_id}/"))
     agent.to(DEVICE)
     agent.eval()
     return agent
@@ -49,17 +49,16 @@ def simulate_game(
 
     while curr_round / 2 != n_games:
         if terminated or sum(reward.values()) != 0:
+            curr_round += 1
             score += np.array(list(reward.values()))
             obs, info = env.reset()
 
             if curr_round % 2 == 1:
-                agent_1 = setup_agent(agent_class=player_1_agent_class, player_id=player_1_id, side=((curr_round % 2) + 1))
-                agent_2 = setup_agent(agent_class=player_2_agent_class, player_id=player_2_id, side=(curr_round % 2))
+                agent_1 = setup_agent(agent_class=player_1_agent_class, player_id=player_1_id, side=(curr_round % 2))
+                agent_2 = setup_agent(agent_class=player_2_agent_class, player_id=player_2_id, side=((curr_round + 1) % 2))
             else:
-                agent_2 = setup_agent(agent_class=player_1_agent_class, player_id=player_1_id, side=((curr_round % 2) + 1))
-                agent_1 = setup_agent(agent_class=player_2_agent_class, player_id=player_2_id, side=(curr_round % 2))
-
-            curr_round += 1
+                agent_2 = setup_agent(agent_class=player_1_agent_class, player_id=player_1_id, side=(curr_round % 2))
+                agent_1 = setup_agent(agent_class=player_2_agent_class, player_id=player_2_id, side=((curr_round + 1) % 2))
 
         env.render()
 
